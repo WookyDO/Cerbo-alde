@@ -209,6 +209,9 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(HOSTNAME);
   WiFi.setAutoReconnect(true);
+  // Ohne Modem-Sleep: sonst verpasst der ESP32 ARP-Anfragen und ist für den
+  // Cerbo zeitweise nicht erreichbar.
+  WiFi.setSleep(false);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   MDNS.begin(HOSTNAME);

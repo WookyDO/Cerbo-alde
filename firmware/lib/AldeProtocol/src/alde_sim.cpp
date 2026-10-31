@@ -16,12 +16,18 @@ static uint8_t encodeTemp(float celsius) {
   return static_cast<uint8_t>(raw);
 }
 
-bool PanelSim::heating() const {
-  return (gas_ || electric_ > 0) && zone1_ < decodeSetpoint(setpoint_);
+static constexpr float HYSTERESIS = 0.5f;   // °C unter Sollwert bis zum Wiedereinschalten
+
+// Zweipunktregler: heizt bis zum Sollwert, startet erst wieder 0,5 °C darunter.
+void PanelSim::updateHeating() {
+  const float sp = decodeSetpoint(setpoint_);
+  if (!gas_ && electric_ == 0) heating_ = false;
+  else if (zone1_ >= sp) heating_ = false;
+  else if (zone1_ <= sp - HYSTERESIS) heating_ = true;
 }
 
 void PanelSim::info(uint8_t out[8]) const {
-  const bool heat = heating();
+  const bool heat = heating_;
   out[0] = encodeTemp(zone1_);
   out[1] = 0xFE;  // Zone 2 nicht vorhanden
   out[2] = encodeTemp(outdoor_);
@@ -40,16 +46,18 @@ void PanelSim::control(const uint8_t d[8]) {
   electric_ = (d[4] >> 6) & 3;
   water_ = (d[5] >> 3) & 3;
   if (water_ == 3) water_ = WATER_ON;
+  updateHeating();
 }
 
 void PanelSim::step(float seconds) {
-  if (heating()) {
+  if (heating_) {
     zone1_ += HEAT_RATE * seconds;
     float sp = decodeSetpoint(setpoint_);
     if (zone1_ > sp) zone1_ = sp;
   } else {
     zone1_ -= (zone1_ - outdoor_) * COOL_FACTOR * seconds;
   }
+  updateHeating();
 }
 
 }  // namespace alde

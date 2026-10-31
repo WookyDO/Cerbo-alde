@@ -74,7 +74,19 @@ void test_heats_to_setpoint_and_cools_when_off() {
   PanelSim sim;
   apply(sim, "sp=21 gas=1");
   for (int i = 0; i < 200; i++) sim.step(1.0f);
-  TEST_ASSERT_FLOAT_WITHIN(0.1f, 21.0f, sim.zone1());  // regelt um den Sollwert
+  // regelt mit 0,5 °C Hysterese unter dem Sollwert
+  TEST_ASSERT_TRUE(sim.zone1() <= 21.0f);
+  TEST_ASSERT_TRUE(sim.zone1() >= 20.45f);
+
+  // Pumpe schaltet nicht bei jedem Schritt um
+  int toggles = 0;
+  bool last = sim.heating();
+  for (int i = 0; i < 60; i++) {
+    sim.step(0.5f);
+    if (sim.heating() != last) toggles++;
+    last = sim.heating();
+  }
+  TEST_ASSERT_TRUE(toggles <= 2);
 
   apply(sim, "gas=0");
   for (int i = 0; i < 100; i++) sim.step(1.0f);

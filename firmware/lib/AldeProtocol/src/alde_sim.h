@@ -19,9 +19,12 @@ class PanelSim {
   void step(float seconds);
 
   float zone1() const { return zone1_; }
-  bool heating() const;
+  bool heating() const { return heating_; }
 
  private:
+  void updateHeating();
+
+  bool heating_ = false;
   float zone1_ = 18.0f;
   float outdoor_ = 8.0f;
   uint8_t setpoint_ = 30;  // 20 °C (Rohwert, 0,5-°C-Raster ab 5 °C)
