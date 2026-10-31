@@ -1,4 +1,4 @@
-// Hardware- und Netzwerkeinstellungen der Alde-LIN-Bridge.
+// Hardware- und Netzwerkeinstellungen der LIN-Heizungs-Bridge.
 // WLAN, IP und Passwörter werden auf der Setup-Seite eingestellt (settings.h).
 #pragma once
 
@@ -10,13 +10,13 @@ constexpr int PIN_LIN_TX = 15;
 constexpr int PIN_LED_LIN = 2;   // aktiv low
 constexpr int PIN_LED_NET = 17;  // aktiv low
 
-constexpr const char *HOSTNAME = "alde-bridge";
+constexpr const char *HOSTNAME = "lin-bridge";
 constexpr uint16_t TCP_PORT = 7020;
 constexpr uint16_t HTTP_PORT = 80;
 
 // Access Point für Ersteinrichtung und als Notfall-Zugang
-constexpr const char *SETUP_AP_SSID = "Alde-Bridge";
-constexpr const char *SETUP_AP_PASSWORD = "alde-setup";  // solange kein eigenes gesetzt ist
+constexpr const char *SETUP_AP_SSID = "LIN-Bridge";
+constexpr const char *SETUP_AP_PASSWORD = "lin-setup";  // solange kein eigenes gesetzt ist
 constexpr uint32_t FALLBACK_AP_AFTER_MS = 60000;  // WLAN so lange weg -> AP zusätzlich an
 constexpr uint32_t STA_RETRY_MS = 30000;          // neuer Verbindungsversuch zum WLAN
 

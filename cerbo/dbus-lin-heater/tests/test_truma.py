@@ -29,7 +29,7 @@ class ParseTest(unittest.TestCase):
         self.assertIsNone(t.parse_state('link=0'))
 
     def test_hello(self):
-        self.assertEqual(parse_hello('alde-bridge 1.1 heater=truma'), 'truma')
+        self.assertEqual(parse_hello('lin-bridge 1.1 heater=truma'), 'truma')
         self.assertEqual(parse_hello('alde-bridge 1.0'), 'alde')
 
 

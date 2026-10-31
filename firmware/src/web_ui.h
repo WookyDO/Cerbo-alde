@@ -141,7 +141,7 @@ poll();setInterval(poll,2000);
 static const char SETUP_UI[] PROGMEM = R"HTML(<!doctype html>
 <html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Alde-Bridge Einstellungen</title>
+<title>LIN-Bridge Einstellungen</title>
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--fg:#1d2329;--mut:#69727d;--line:#dde1e6;--acc:#d9480f;--ok:#2b8a3e;--bad:#c92a2a}
 @media (prefers-color-scheme:dark){:root{--bg:#15181c;--card:#1f2328;--fg:#e8eaed;--mut:#9aa3ad;--line:#343a40;--acc:#ff8a4c;--ok:#51cf66;--bad:#ff6b6b}}
@@ -221,7 +221,7 @@ async function load(){
  f.apssid.value=c.apSsid;
  if(c.hasPass)f.pass.placeholder=keep;
  if(c.hasApPass)f.appass.placeholder=keep;
- $('aphint').textContent=c.hasApPass?'':'Noch kein eigenes Passwort: Standard ist „alde-setup“.';
+ $('aphint').textContent=c.hasApPass?'':'Noch kein eigenes Passwort: Standard ist „lin-setup“.';
  if(c.hasOta)f.ota.placeholder=keep;else f.ota.required=true;
  if(c.hasWeb)f.web.placeholder=keep;else $('webclearrow').style.display='none';
  vis();

@@ -5,12 +5,13 @@
 #include "config.h"
 
 // OTA-Passwort für den ersten Start ohne gespeicherte Einstellungen, damit die
-// Bridge nach dem Update weiter per OTA erreichbar bleibt (aus ALDE_OTA_PASSWORD
+// Bridge nach dem Update weiter per OTA erreichbar bleibt (aus LIN_OTA_PASSWORD
 // beim Bauen, siehe platformio.ini).
 #ifndef DEFAULT_OTA_PASSWORD
 #define DEFAULT_OTA_PASSWORD ""
 #endif
 
+// Name aus der ersten Version; nicht ändern, sonst gehen gespeicherte Einstellungen verloren.
 static constexpr const char *NS = "alde";
 
 void settingsLoad(Settings &s) {

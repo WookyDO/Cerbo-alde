@@ -76,7 +76,7 @@ OUT = '/SwitchableOutput/%d/%s'
 
 class Base(unittest.TestCase):
     MODEL = alde.Model
-    HELLO = 'HELLO alde-bridge 1.1 heater=alde'
+    HELLO = 'HELLO lin-bridge 1.1 heater=alde'
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -169,7 +169,7 @@ class AldeServiceTest(Base):
 
 class TrumaServiceTest(Base):
     MODEL = truma.Model
-    HELLO = 'HELLO alde-bridge 1.1 heater=truma'
+    HELLO = 'HELLO lin-bridge 1.1 heater=truma'
 
     def test_registered(self):
         self.assertEqual(self.sw.name, 'com.victronenergy.switch.truma_combi')
@@ -234,7 +234,7 @@ class HelloTest(Base):
 
     def test_other_type_restarts_and_remembers(self):
         self.svc.on_line(ALDE_STATE)
-        self.svc.on_line('HELLO alde-bridge 1.1 heater=truma')
+        self.svc.on_line('HELLO lin-bridge 1.1 heater=truma')
         self.assertEqual(self.restarted, [True])
         self.assertEqual(self.sw['/Connected'], 0)
         self.assertEqual(svcmod.configured_type(svcmod.load_config()), 'truma')
@@ -245,7 +245,7 @@ class HelloTest(Base):
         cfg = svcmod.load_config()
         cfg.set('bridge', 'heater', 'alde')
         svc = svcmod.HeaterService(cfg, alde.Model, restart=lambda: self.restarted.append(True))
-        svc.on_line('HELLO alde-bridge 1.1 heater=truma')
+        svc.on_line('HELLO lin-bridge 1.1 heater=truma')
         self.assertEqual(self.restarted, [])
 
     def test_legacy_names_section(self):

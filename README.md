@@ -8,7 +8,7 @@ Steuerung einer **Alde Compact 3030 Plus** oder einer **Truma Combi mit CP Plus*
 Alde 3030 Plus ── gelber RJ12 ──┐
   (Bridge = LIN-Master)         ├─ WomoLIN LIN-Controller ── WLAN/TCP ── Cerbo GX
 Truma CP Plus  ── RJ12 (TIN) ───┘    Firmware: firmware/                 Dienst: cerbo/dbus-lin-heater/
-  (Bridge = iNet Box, LIN-Slave)     Weboberfläche: http://alde-bridge.local
+  (Bridge = iNet Box, LIN-Slave)     Weboberfläche: http://lin-bridge.local
 ```
 
 Der Heizungstyp wird auf der Setup-Seite der Bridge gewählt. Der Cerbo-Dienst übernimmt ihn
@@ -65,11 +65,11 @@ WLAN, IP, Passwörter und Heizungstyp werden nicht einkompiliert, sondern auf de
 Bridge eingestellt (siehe [Einrichtung](#einrichtung)). Alle weiteren Updates gehen per WLAN:
 
 ```sh
-export ALDE_OTA_PASSWORD='…'    # OTA-Passwort aus der Setup-Seite
+export LIN_OTA_PASSWORD='…'    # OTA-Passwort aus der Setup-Seite
 pio run -e womolin_ota -t upload
 ```
 
-`ALDE_OTA_PASSWORD` dient beim Bauen außerdem als Start-OTA-Passwort, solange die Bridge noch
+`LIN_OTA_PASSWORD` dient beim Bauen außerdem als Start-OTA-Passwort, solange die Bridge noch
 keine Einstellungen gespeichert hat. PlatformIO baut bei einer geänderten Variable nicht neu; dann
 vorher `rm -rf .pio/build` ausführen.
 
@@ -113,7 +113,7 @@ RAM 50 KB von 320 KB (15 %).
 
 ### Zeilenprotokoll (TCP-Port 7020 und USB-Seriell)
 
-Beim Verbinden meldet die Bridge `HELLO alde-bridge 1.1 heater=alde` bzw. `heater=truma`.
+Beim Verbinden meldet die Bridge `HELLO lin-bridge 1.1 heater=alde` bzw. `heater=truma`.
 Zeilen mit `#` sind Logausgaben.
 
 | Richtung | Zeile | Bedeutung |
@@ -137,7 +137,7 @@ TCP-Verbindung; eine neue verdrängt die bestehende (z.B. die des Cerbo).
 
 ### Weboberfläche (Betrieb ohne Cerbo)
 
-Unter `http://alde-bridge.local` (oder der IP der Bridge) gibt es eine Seite mit dem gleichen
+Unter `http://lin-bridge.local` (oder der IP der Bridge) gibt es eine Seite mit dem gleichen
 Umfang wie auf dem Cerbo, passend zum Heizungstyp. Dazu kommen die WLAN-Signalstärke und ein Link
 zu den Einstellungen. Befehle laufen über denselben Weg wie die vom Cerbo; beide lassen sich
 gleichzeitig verwenden.
@@ -164,15 +164,15 @@ Die Einstellungen liegen im Flash der Bridge (NVS) und überstehen Firmware-Upda
 | Betriebsart | **WLAN-Client**: Die Bridge verbindet sich mit dem Router. **Eigener Access Point**: Die Bridge öffnet dauerhaft ein eigenes WLAN, IP `192.168.4.1`. Der Cerbo verbindet sich dann mit diesem WLAN und bekommt `host = 192.168.4.1` in `config.ini`. |
 | WLAN | Netzwerk (mit Suche) und Passwort |
 | IP-Adresse | DHCP oder fest (IP, Gateway, Subnetzmaske, DNS). Eine feste Adresse muss außerhalb des DHCP-Bereichs liegen, bei der Fritzbox standardmäßig `.20`–`.200`. |
-| Access Point | Name (Standard `Alde-Bridge`) und Passwort (Standard `alde-setup`, solange kein eigenes gesetzt ist) |
+| Access Point | Name (Standard `LIN-Bridge`) und Passwort (Standard `lin-setup`, solange kein eigenes gesetzt ist) |
 | OTA-Passwort | Pflicht. Ohne Passwort wären keine Updates per WLAN mehr möglich. |
 | Web-Passwort | optional, Benutzer `admin` |
 
 Speichern ohne Änderung tut nichts. Neue OTA- oder Web-Passwörter gelten sofort. Bei allem anderen
 startet die Bridge neu; die Seite wartet, bis sie wieder antwortet.
 
-**Erster Start:** Ohne gespeicherte Einstellungen öffnet die Bridge den Access Point `Alde-Bridge`
-(Passwort `alde-setup`). Nach dem Verbinden öffnen die meisten Handys die Setup-Seite von selbst,
+**Erster Start:** Ohne gespeicherte Einstellungen öffnet die Bridge den Access Point `LIN-Bridge`
+(Passwort `lin-setup`). Nach dem Verbinden öffnen die meisten Handys die Setup-Seite von selbst,
 sonst `http://192.168.4.1` aufrufen.
 
 **Notfall-Zugang:** Ist das eingestellte WLAN 60 s nicht erreichbar (falsches Passwort, Router aus),
@@ -182,7 +182,7 @@ blinkt, solange der Access Point offen ist.
 
 **Update von einer Version mit `secrets.h`:** Beim ersten Start übernimmt die Bridge die
 WLAN-Zugangsdaten, die der ESP32 von der Vorversion gespeichert hat. Das OTA-Passwort kommt aus
-`ALDE_OTA_PASSWORD` beim Bauen. Danach kann `include/secrets.h` gelöscht werden.
+`LIN_OTA_PASSWORD` beim Bauen. Danach kann `include/secrets.h` gelöscht werden.
 
 **Rettung über USB:** Ist die Bridge nicht mehr erreichbar, nimmt sie über die USB-Schnittstelle
 (115200 Baud) diese Befehle an. Über TCP sind sie gesperrt.
@@ -222,7 +222,7 @@ ssh root@<cerbo-ip> svc -t /service/dbus-lin-heater       # neu starten
 
 **Alde**
 
-1. Controller flashen, über den Access Point `Alde-Bridge` einrichten, Heizung „Alde“ wählen.
+1. Controller flashen, über den Access Point `LIN-Bridge` einrichten, Heizung „Alde“ wählen.
 2. Mit der Alde verbinden. Nach `Panel antwortet` sollten `STATE link=1 …`-Zeilen erscheinen.
    Die Werte mit dem Display der Alde vergleichen.
 3. Einen einzelnen Befehl testen, z.B. über die Weboberfläche den Sollwert ändern, und am Panel prüfen.

@@ -139,7 +139,7 @@ static void handleNetwork() {
     tcpReader.len = 0;
     tcpReader.overflow = false;
     logf("TCP-Client verbunden: %s", client.remoteIP().toString().c_str());
-    client.printf("HELLO alde-bridge %s heater=%s\n", VERSION, heater->type());
+    client.printf("HELLO lin-bridge %s heater=%s\n", VERSION, heater->type());
     heater->publish(true);
   }
   if (client && client.connected()) readLines(client, tcpReader, false);
