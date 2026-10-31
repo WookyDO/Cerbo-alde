@@ -375,15 +375,41 @@ static void webConfigPost() {
     return;
   }
 
+  const bool restart = n.networkDiffers(cfg);
+  const bool changed = restart || n.otaPass != cfg.otaPass || n.webPass != cfg.webPass;
+  if (!changed) {
+    web.send(200, "application/json",
+             "{\"ok\":true,\"restart\":false,\"next\":\"Keine Aenderungen.\"}");
+    return;
+  }
   settingsSave(n);
-  String next;
-  if (n.apMode)
+  if (!restart) {
+    // Passwörter gelten sofort, ohne Neustart.
+    cfg.otaPass = n.otaPass;
+    cfg.webPass = n.webPass;
+    ArduinoOTA.setPassword(cfg.otaPass.c_str());
+    logf("Passwoerter gespeichert");
+    web.send(200, "application/json",
+             "{\"ok\":true,\"restart\":false,\"next\":\"Gespeichert, gilt sofort.\"}");
+    return;
+  }
+
+  // Wo die Bridge nach dem Neustart erreichbar ist; "url" fragt die Seite ab.
+  String next, url;
+  if (n.apMode) {
     next = "Mit dem WLAN \"" + n.apSsid + "\" verbinden, dann http://192.168.4.1 aufrufen.";
-  else if (n.staticIp)
-    next = "Nach dem Neustart unter http://" + n.ip.toString() + " erreichbar.";
-  else
-    next = String("Nach dem Neustart unter http://") + HOSTNAME + ".local erreichbar.";
-  web.send(200, "application/json", "{\"ok\":true,\"next\":" + jsonStr(next) + "}");
+  } else if (n.staticIp) {
+    url = "http://" + n.ip.toString() + "/";
+  } else if (!cfg.apMode && cfg.staSsid == n.staSsid && WiFi.status() == WL_CONNECTED) {
+    url = "http://" + WiFi.localIP().toString() + "/";  // DHCP vergibt meist dieselbe
+  } else {
+    next = String("Im WLAN \"") + n.staSsid + "\" unter http://" + HOSTNAME +
+           ".local erreichbar (oder IP im Router nachsehen).";
+  }
+  if (url.length()) next = "Nach dem Neustart unter " + url + " erreichbar.";
+  web.send(200, "application/json",
+           "{\"ok\":true,\"restart\":true,\"next\":" + jsonStr(next) + ",\"url\":" +
+               jsonStr(url) + "}");
   logf("Einstellungen gespeichert, Neustart");
   restartAt = millis() + 1500;
   if (!restartAt) restartAt = 1;

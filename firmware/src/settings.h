@@ -15,6 +15,14 @@ struct Settings {
 
   // false: noch nie eingerichtet, die Bridge startet im Setup-Modus.
   bool configured() const { return apMode || staSsid.length() > 0; }
+
+  // true, wenn sich WLAN, IP oder Access Point unterscheiden (Neustart nötig).
+  bool networkDiffers(const Settings &o) const {
+    return apMode != o.apMode || staSsid != o.staSsid || staPass != o.staPass ||
+           apSsid != o.apSsid || apPass != o.apPass || staticIp != o.staticIp ||
+           (staticIp && (ip != o.ip || gateway != o.gateway || subnet != o.subnet ||
+                         dns != o.dns));
+  }
 };
 
 void settingsLoad(Settings &s);

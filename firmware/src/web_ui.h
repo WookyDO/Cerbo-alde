@@ -197,13 +197,25 @@ $('scan').onclick=async()=>{
   await new Promise(r=>setTimeout(r,1000))}}
  finally{b.disabled=false;b.textContent='Suchen'}
 };
+// Nach dem Neustart warten, bis die Bridge antwortet, dann dorthin wechseln.
+async function waitFor(url,m){
+ await new Promise(r=>setTimeout(r,4000));
+ for(let i=0;i<30;i++){
+  try{await fetch(url+'api/state',{mode:'no-cors',cache:'no-store',signal:AbortSignal.timeout(3000)});location.href=url;return}catch(x){}
+  m.textContent+=' .';await new Promise(r=>setTimeout(r,2000));
+ }
+ m.className='err';m.textContent='Bridge antwortet nicht unter '+url+'. Adresse im Router prüfen oder bis zu 60 s auf den Access Point „'+f.apssid.value+'“ warten.';
+}
 f.onsubmit=async e=>{
  e.preventDefault();
  const m=$('msg');m.className='';m.textContent='Speichern …';
  try{
   const r=await (await fetch('/api/config',{method:'POST',body:new URLSearchParams(new FormData(f))})).json();
-  if(r.ok){m.className='ok';m.textContent='Gespeichert, die Bridge startet neu. '+r.next}
-  else{m.className='err';m.textContent=r.error}
+  if(!r.ok){m.className='err';m.textContent=r.error;return}
+  m.className='ok';
+  if(!r.restart){m.textContent=r.next;load();return}
+  m.textContent='Gespeichert, die Bridge startet neu. '+r.next;
+  if(r.url)waitFor(r.url,m);
  }catch(x){m.className='err';m.textContent='Speichern fehlgeschlagen'}
 };
 load();
