@@ -119,12 +119,42 @@ static void handlePending() {
   logf("TX Control %02X %02X %02X (Versuch %u)", frame[3], frame[4], frame[5], attempts);
 }
 
-static void handleLine(char *line) {
+// Rettungsweg über USB, falls die Bridge im WLAN nicht mehr erreichbar ist:
+// "NET" zeigt die Betriebsart, "NET STA"/"NET AP" wechselt sie und startet neu.
+static void handleNet(const char *arg) {
+  if (!*arg) {
+    Serial.printf("NET mode=%s ssid=%s ap=%s ip=%s apip=%s\n", cfg.apMode ? "ap" : "sta",
+                  cfg.staSsid.c_str(), cfg.apSsid.c_str(), WiFi.localIP().toString().c_str(),
+                  netApActive() ? WiFi.softAPIP().toString().c_str() : "-");
+    return;
+  }
+  const bool ap = !strcmp(arg, "AP");
+  if (!ap && strcmp(arg, "STA")) {
+    Serial.println("ERR NET, NET STA oder NET AP");
+    return;
+  }
+  if (!ap && cfg.staSsid.isEmpty()) {
+    Serial.println("ERR kein WLAN gespeichert, Setup ueber den Access Point");
+    return;
+  }
+  if (ap && cfg.apPass.length() < 8) {
+    Serial.println("ERR kein eigenes AP-Passwort gespeichert");
+    return;
+  }
+  cfg.apMode = ap;
+  settingsSave(cfg);
+  Serial.println("OK Neustart");
+  restartAt = millis() + 500;
+}
+
+static void handleLine(char *line, bool usb) {
   size_t n = strlen(line);
   while (n && (line[n - 1] == '\r' || line[n - 1] == ' ')) line[--n] = '\0';
   if (!n) return;
 
-  if (!strcmp(line, "PING")) {
+  if (usb && (!strcmp(line, "NET") || !strncmp(line, "NET ", 4))) {
+    handleNet(line[3] ? line + 4 : "");
+  } else if (!strcmp(line, "PING")) {
     emit("PONG");
   } else if (!strcmp(line, "GET")) {
     publishState(true);
@@ -145,12 +175,12 @@ static void handleLine(char *line) {
   }
 }
 
-static void readLines(Stream &in, LineReader &r) {
+static void readLines(Stream &in, LineReader &r, bool usb) {
   while (in.available()) {
     char c = in.read();
     if (c == '\n') {
       r.buf[r.len] = '\0';
-      if (!r.overflow) handleLine(r.buf);
+      if (!r.overflow) handleLine(r.buf, usb);
       r.len = 0;
       r.overflow = false;
     } else if (r.len < sizeof r.buf - 1) {
@@ -210,7 +240,7 @@ static void handleNetwork() {
     client.print("HELLO alde-bridge 1.0\n");
     publishState(true);
   }
-  if (client && client.connected()) readLines(client, tcpReader);
+  if (client && client.connected()) readLines(client, tcpReader, false);
 }
 
 // ── Weboberfläche ──────────────────────────────────────────────────────────
@@ -507,7 +537,7 @@ void loop() {
   netLoop();
   handleNetwork();
   web.handleClient();
-  readLines(Serial, usbReader);
+  readLines(Serial, usbReader, true);
 
   if (restartAt && (int32_t)(millis() - restartAt) >= 0) ESP.restart();
 

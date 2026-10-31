@@ -124,6 +124,15 @@ blinkt, solange der Access Point offen ist.
 WLAN-Zugangsdaten, die der ESP32 von der Vorversion gespeichert hat. Das OTA-Passwort kommt aus
 `ALDE_OTA_PASSWORD` beim Bauen. Danach kann `include/secrets.h` gelöscht werden.
 
+**Rettung über USB:** Ist die Bridge nicht mehr erreichbar, nimmt sie über die USB-Schnittstelle
+(115200 Baud) diese Befehle an. Über TCP sind sie gesperrt.
+
+| Befehl | Wirkung |
+|---|---|
+| `NET` | Betriebsart, WLAN, IP-Adressen anzeigen |
+| `NET STA` | zurück auf WLAN-Client (gespeichertes WLAN), Neustart |
+| `NET AP` | auf dauerhaften Access Point (braucht ein gespeichertes AP-Passwort), Neustart |
+
 Nach einer Änderung der Adresse `host` in `config.ini` auf dem Cerbo anpassen.
 
 ## Cerbo-Dienst (`cerbo/dbus-alde/`)
