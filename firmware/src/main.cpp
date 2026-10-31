@@ -202,6 +202,9 @@ void setup() {
 
   lin.begin();
   logf("Alde-LIN-Bridge startet");
+#ifdef ALDE_SIM
+  logf("TESTBETRIEB: Panel wird simuliert (Antworten ueber den LIN-Transceiver)");
+#endif
 
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(HOSTNAME);

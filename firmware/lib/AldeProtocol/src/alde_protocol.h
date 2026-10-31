@@ -53,9 +53,11 @@ struct State {
 // Wertet die 8 Datenbytes des Info-Frames aus.
 void decodeInfo(const uint8_t data[8], State &out);
 
-// Sucht im Empfangspuffer (Echo + Antwort) nach "0x55 0x5B" gefolgt von
-// 8 Datenbytes + gültiger Enhanced-Checksumme. Liefert true und kopiert die
-// Datenbytes nach out.
+// Sucht im Empfangspuffer nach "0x55 <pid>" gefolgt von 8 Datenbytes +
+// gültiger Enhanced-Checksumme. Liefert true und kopiert die Datenbytes nach out.
+bool findFrame(const uint8_t *buf, size_t len, uint8_t pid, uint8_t out[8]);
+
+// findFrame() für den Info-Frame (Echo + Antwort des Panels, PID 0x5B).
 bool findInfoResponse(const uint8_t *buf, size_t len, uint8_t out[8]);
 
 // Gewünschte Änderungen; nicht gesetzte Felder bleiben wie vom Panel gemeldet.

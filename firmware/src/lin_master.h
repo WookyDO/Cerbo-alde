@@ -4,6 +4,9 @@
 #include <Arduino.h>
 
 #include "alde_protocol.h"
+#ifdef ALDE_SIM
+#include "alde_sim.h"
+#endif
 
 class LinMaster {
  public:
@@ -25,4 +28,13 @@ class LinMaster {
 
   HardwareSerial &ser_;
   int rxPin_, txPin_;
+
+#ifdef ALDE_SIM
+  // Testbetrieb: der Master beantwortet seine Abfragen selbst über den
+  // Transceiver und liest Steuer-Frames aus dem eigenen Echo.
+  void simAnswerInfo();
+  void simReadControlEcho();
+  alde::PanelSim sim_;
+  uint32_t simLastStep_ = 0;
+#endif
 };

@@ -96,6 +96,25 @@ ssh root@<cerbo-ip> svc -t /service/dbus-alde       # neu starten
 Erscheint dauerhaft `STATE link=0`, prüfe Verdrahtung, Masse und 12 V. Hilft das nicht, mit
 einem Logikanalysator am LIN-Pin Break und Antwort prüfen.
 
+### Testbetrieb ohne Heizung
+
+```sh
+cd firmware
+pio run -e womolin_sim -t upload
+```
+
+In dieser Variante beantwortet der Controller seine LIN-Abfragen selbst wie ein Alde-Panel. Die
+Antworten laufen über den echten Transceiver und kommen als Echo zurück; Steuer-Frames liest das
+simulierte Panel ebenfalls aus dem Echo. Damit lassen sich LIN-Hardware, WLAN/TCP und der
+Cerbo-Dienst testen, bevor die Alde angeschlossen ist. Der Controller braucht dafür 12 V, sonst
+bleibt es bei `link=0`.
+
+Das simulierte Panel startet mit 18 °C innen, 8 °C außen und Sollwert 20 °C. Bei Gas oder Elektro
+heizt es mit 0,05 °C/s Richtung Sollwert, sonst kühlt es Richtung Außentemperatur ab.
+
+Die Testvariante **nicht an der echten Heizung** verwenden. Vor dem Anschluss an die Alde wieder
+`pio run -e womolin -t upload` (oder per WLAN `womolin_ota`) aufspielen.
+
 ## Tests
 
 ```sh

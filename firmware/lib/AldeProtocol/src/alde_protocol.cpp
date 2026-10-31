@@ -58,7 +58,10 @@ void decodeInfo(const uint8_t d[8], State &s) {
 }
 
 bool findInfoResponse(const uint8_t *buf, size_t len, uint8_t out[8]) {
-  const uint8_t p = pid(ID_INFO);
+  return findFrame(buf, len, pid(ID_INFO), out);
+}
+
+bool findFrame(const uint8_t *buf, size_t len, uint8_t p, uint8_t out[8]) {
   for (size_t i = 0; i + 11 <= len; i++) {
     if (buf[i] != 0x55 || buf[i + 1] != p) continue;
     const uint8_t *d = buf + i + 2;
