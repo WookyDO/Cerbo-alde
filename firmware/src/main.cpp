@@ -420,9 +420,12 @@ void setup() {
   netBegin(cfg);
 
   MDNS.begin(HOSTNAME);
-  ArduinoOTA.setHostname(HOSTNAME);
-  if (cfg.otaPass.length()) ArduinoOTA.setPassword(cfg.otaPass.c_str());
-  ArduinoOTA.begin();
+  // OTA erst nach der Einrichtung, nie ohne Passwort.
+  if (cfg.otaPass.length()) {
+    ArduinoOTA.setHostname(HOSTNAME);
+    ArduinoOTA.setPassword(cfg.otaPass.c_str());
+    ArduinoOTA.begin();
+  }
   server.begin();
   setupWeb();
 

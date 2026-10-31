@@ -96,13 +96,11 @@ def new_bus():
 
 
 def model_names(cfg, model):
-    """Anzeigenamen: Vorgaben des Modells, überschrieben aus [names.<typ>].
-    Für die Alde gilt auch [names] (Konfiguration von dbus-alde)."""
+    """Anzeigenamen: Vorgaben des Modells, überschrieben aus [names.<typ>]."""
     names = dict(model.NAMES)
-    sections = (['names'] if model.TYPE == 'alde' else []) + ['names.' + model.TYPE]
-    for section in sections:
-        if cfg.has_section(section):
-            names.update(cfg[section])
+    section = 'names.' + model.TYPE
+    if cfg.has_section(section):
+        names.update(cfg[section])
     return names
 
 

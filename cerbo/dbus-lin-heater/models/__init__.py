@@ -11,8 +11,8 @@ MODELS = {alde.Model.TYPE: alde.Model, truma.Model.TYPE: truma.Model}
 
 
 def parse_hello(rest):
-    """'lin-bridge 1.1 heater=truma' -> 'truma'; ältere Firmware kennt nur die Alde."""
+    """'lin-bridge 1.1 heater=truma' -> 'truma'; None, wenn der Typ fehlt."""
     for tok in rest.split():
         if tok.startswith('heater='):
             return tok.split('=', 1)[1]
-    return alde.Model.TYPE
+    return None

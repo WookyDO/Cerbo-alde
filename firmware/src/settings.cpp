@@ -4,14 +4,7 @@
 
 #include "config.h"
 
-// OTA-Passwort für den ersten Start ohne gespeicherte Einstellungen, damit die
-// Bridge nach dem Update weiter per OTA erreichbar bleibt (aus LIN_OTA_PASSWORD
-// beim Bauen, siehe platformio.ini).
-#ifndef DEFAULT_OTA_PASSWORD
-#define DEFAULT_OTA_PASSWORD ""
-#endif
-
-// Name aus der ersten Version; nicht ändern, sonst gehen gespeicherte Einstellungen verloren.
+// Interner Name; eine Änderung löscht die gespeicherten Einstellungen.
 static constexpr const char *NS = "alde";
 
 void settingsLoad(Settings &s) {
@@ -28,7 +21,7 @@ void settingsLoad(Settings &s) {
   s.gateway = IPAddress(p.getUInt("gw", 0));
   s.subnet = IPAddress(p.getUInt("mask", uint32_t(IPAddress(255, 255, 255, 0))));
   s.dns = IPAddress(p.getUInt("dns", 0));
-  s.otaPass = p.getString("ota", DEFAULT_OTA_PASSWORD);
+  s.otaPass = p.getString("ota", "");
   s.webPass = p.getString("web", "");
   p.end();
 }

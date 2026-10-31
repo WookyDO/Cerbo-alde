@@ -69,10 +69,6 @@ export LIN_OTA_PASSWORD='…'    # OTA-Passwort aus der Setup-Seite
 pio run -e womolin_ota -t upload
 ```
 
-`LIN_OTA_PASSWORD` dient beim Bauen außerdem als Start-OTA-Passwort, solange die Bridge noch
-keine Einstellungen gespeichert hat. PlatformIO baut bei einer geänderten Variable nicht neu; dann
-vorher `rm -rf .pio/build` ausführen.
-
 Die Originalsoftware lässt sich jederzeit wiederherstellen, über
 `bin/flash_womolin_inetbox2mqtt_*.bin.zip` aus [inetbox2mqtt](https://github.com/mc0110/inetbox2mqtt).
 
@@ -165,7 +161,7 @@ Die Einstellungen liegen im Flash der Bridge (NVS) und überstehen Firmware-Upda
 | WLAN | Netzwerk (mit Suche) und Passwort |
 | IP-Adresse | DHCP oder fest (IP, Gateway, Subnetzmaske, DNS). Eine feste Adresse muss außerhalb des DHCP-Bereichs liegen, bei der Fritzbox standardmäßig `.20`–`.200`. |
 | Access Point | Name (Standard `LIN-Bridge`) und Passwort (Standard `lin-setup`, solange kein eigenes gesetzt ist) |
-| OTA-Passwort | Pflicht. Ohne Passwort wären keine Updates per WLAN mehr möglich. |
+| OTA-Passwort | Pflicht. Updates per WLAN sind erst nach der Einrichtung möglich, nie ohne Passwort. |
 | Web-Passwort | optional, Benutzer `admin` |
 
 Speichern ohne Änderung tut nichts. Neue OTA- oder Web-Passwörter gelten sofort. Bei allem anderen
@@ -179,10 +175,6 @@ sonst `http://192.168.4.1` aufrufen.
 öffnet die Bridge zusätzlich ihren Access Point und versucht alle 30 s erneut, ins WLAN zu kommen.
 Sobald das klappt und niemand mehr am Access Point hängt, schließt sie ihn wieder. Die Netz-LED
 blinkt, solange der Access Point offen ist.
-
-**Update von einer Version mit `secrets.h`:** Beim ersten Start übernimmt die Bridge die
-WLAN-Zugangsdaten, die der ESP32 von der Vorversion gespeichert hat. Das OTA-Passwort kommt aus
-`LIN_OTA_PASSWORD` beim Bauen. Danach kann `include/secrets.h` gelöscht werden.
 
 **Rettung über USB:** Ist die Bridge nicht mehr erreichbar, nimmt sie über die USB-Schnittstelle
 (115200 Baud) diese Befehle an. Über TCP sind sie gesperrt.
@@ -213,7 +205,6 @@ ssh root@<cerbo-ip> svc -t /service/dbus-lin-heater       # neu starten
   Typ wird dann nur gemeldet und nicht ausgewertet.
 - Truma: Nach einer Eingabe in der GUI hält der Dienst den neuen Wert 40 s, bis das CP Plus ihn
   bestätigt hat (Alde: 3 s).
-- Ersetzt den Vorgänger `dbus-alde`: `install.sh` entfernt ihn und übernimmt seine `config.ini`.
 - Logs: `tail -F /var/log/dbus-lin-heater/current | tai64nlocal`
 - Deinstallieren: `/data/dbus-lin-heater/uninstall.sh`
 - Der Dienst übersteht Firmware-Updates, weil er unter `/data` liegt und über `/data/rc.local` gestartet wird.

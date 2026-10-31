@@ -2,7 +2,6 @@
 
 #include <DNSServer.h>
 #include <WiFi.h>
-#include <esp_wifi.h>
 
 #include "config.h"
 
@@ -29,23 +28,6 @@ static void stopAp() {
   Serial.println("# Access Point beendet");
 }
 
-// Vorversionen hatten die Zugangsdaten fest einkompiliert; der WLAN-Stack hat
-// sie zusätzlich selbst gespeichert. Beim ersten Start übernehmen, damit die
-// Bridge nach dem OTA-Update im gleichen WLAN bleibt.
-static void adoptStoredCredentials() {
-  wifi_config_t conf;
-  if (esp_wifi_get_config(WIFI_IF_STA, &conf) != ESP_OK || !conf.sta.ssid[0]) return;
-  char ssid[33], pass[65];
-  memcpy(ssid, conf.sta.ssid, 32);
-  ssid[32] = '\0';
-  memcpy(pass, conf.sta.password, 64);
-  pass[64] = '\0';
-  cfg->staSsid = ssid;
-  cfg->staPass = pass;
-  settingsSave(*cfg);
-  Serial.printf("# WLAN-Zugangsdaten uebernommen: %s\n", ssid);
-}
-
 void netBegin(Settings &s) {
   cfg = &s;
   WiFi.setHostname(HOSTNAME);
@@ -56,8 +38,6 @@ void netBegin(Settings &s) {
     return;
   }
 
-  WiFi.mode(WIFI_STA);
-  if (!s.configured()) adoptStoredCredentials();
   if (!s.configured()) {
     Serial.println("# Nicht eingerichtet, Setup ueber den Access Point");
     WiFi.mode(WIFI_AP);
@@ -65,6 +45,7 @@ void netBegin(Settings &s) {
     return;
   }
 
+  WiFi.mode(WIFI_STA);
   // Ohne Modem-Sleep: sonst verpasst der ESP32 ARP-Anfragen und ist für den
   // Cerbo zeitweise nicht erreichbar.
   WiFi.setSleep(false);

@@ -30,7 +30,7 @@ class ParseTest(unittest.TestCase):
 
     def test_hello(self):
         self.assertEqual(parse_hello('lin-bridge 1.1 heater=truma'), 'truma')
-        self.assertEqual(parse_hello('alde-bridge 1.0'), 'alde')
+        self.assertIsNone(parse_hello('lin-bridge 1.1'))
 
 
 class WriteTest(unittest.TestCase):

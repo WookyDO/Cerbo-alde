@@ -161,10 +161,11 @@ class AldeServiceTest(Base):
         self.assertFalse(self.sw.write(OUT % (3, 'Dimming'), 7))
         self.assertEqual(self.sent, [])
 
-    def test_old_firmware_hello_counts_as_alde(self):
-        self.svc.on_line('HELLO alde-bridge 1.0')
+    def test_hello_without_type_is_not_trusted(self):
+        self.svc.on_line('HELLO lin-bridge 1.1')
         self.svc.on_line(ALDE_STATE)
-        self.assertEqual(self.sw['/Connected'], 1)
+        self.assertEqual(self.sw['/Connected'], 0)
+        self.assertEqual(self.restarted, [])
 
 
 class TrumaServiceTest(Base):
@@ -248,9 +249,9 @@ class HelloTest(Base):
         svc.on_line('HELLO lin-bridge 1.1 heater=truma')
         self.assertEqual(self.restarted, [])
 
-    def test_legacy_names_section(self):
+    def test_names_per_type(self):
         cfg = svcmod.load_config()
-        cfg.read_dict({'names': {'group': 'Heizung Bus'}})
+        cfg.read_dict({'names.alde': {'group': 'Heizung Bus'}})
         self.assertEqual(svcmod.model_names(cfg, alde.Model())['group'], 'Heizung Bus')
         self.assertEqual(svcmod.model_names(cfg, truma.Model())['group'], 'Truma Heizung')
 
