@@ -4,7 +4,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-import alde_model as m  # noqa: E402
+from models import alde as m  # noqa: E402
 
 # Ausgabe der Firmware (siehe firmware/test/test_protocol)
 STATE_LINE = ('STATE link=1 z1=21.0 z2=- out=8.0 sp=20.0 gas=1 valve=1 el=2 ww=1 '
@@ -13,8 +13,7 @@ STATE_LINE = ('STATE link=1 z1=21.0 z2=- out=8.0 sp=20.0 gas=1 valve=1 el=2 ww=1
 
 class ParseTest(unittest.TestCase):
     def test_state(self):
-        kind, s = m.parse_line(STATE_LINE + '\n')
-        self.assertEqual(kind, 'STATE')
+        s = m.parse_state(STATE_LINE.split(' ', 1)[1] + '\n')
         self.assertEqual(s.zone1, 21.0)
         self.assertIsNone(s.zone2)
         self.assertEqual(s.outdoor, 8.0)
@@ -27,12 +26,7 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(s.raw, 'DE9E09')
 
     def test_link_lost(self):
-        self.assertEqual(m.parse_line('STATE link=0'), ('STATE', None))
-
-    def test_other_lines(self):
-        self.assertEqual(m.parse_line('OK'), ('OK', ''))
-        self.assertEqual(m.parse_line('ERR keine Verbindung zum Panel'),
-                         ('ERR', 'keine Verbindung zum Panel'))
+        self.assertIsNone(m.parse_state('link=0'))
 
 
 class SetTest(unittest.TestCase):

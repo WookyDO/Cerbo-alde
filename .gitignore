@@ -1,4 +1,5 @@
 firmware/.pio/
-cerbo/dbus-alde/config.ini
+cerbo/dbus-lin-heater/config.ini
+cerbo/dbus-lin-heater/heater.type
 __pycache__/
 firmware/include/secrets.h
