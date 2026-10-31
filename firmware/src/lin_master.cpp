@@ -25,7 +25,7 @@ void LinMaster::sendFrame(uint8_t id, const uint8_t data[8]) {
   sendBreak();
   ser_.write(frame, sizeof frame);
   ser_.flush();
-#ifdef ALDE_SIM
+#ifdef HEATER_SIM
   if (id == alde::ID_CONTROL) {
     simReadControlEcho();
     return;
@@ -42,6 +42,15 @@ void LinMaster::drain(uint32_t ms) {
   }
 }
 
+uint32_t LinMaster::discardInput() {
+  uint32_t n = 0;
+  while (ser_.available()) {
+    ser_.read();
+    n++;
+  }
+  return n;
+}
+
 void LinMaster::sendDiag() { sendFrame(alde::ID_DIAG, alde::DIAG_PAYLOAD); }
 
 void LinMaster::sendControl(const uint8_t data[8]) { sendFrame(alde::ID_CONTROL, data); }
@@ -52,7 +61,7 @@ bool LinMaster::readInfo(uint8_t data[8]) {
   const uint8_t header[2] = {0x55, alde::pid(alde::ID_INFO)};
   ser_.write(header, sizeof header);
   ser_.flush();
-#ifdef ALDE_SIM
+#ifdef HEATER_SIM
   simAnswerInfo();
 #endif
 
@@ -69,7 +78,7 @@ bool LinMaster::readInfo(uint8_t data[8]) {
   return false;
 }
 
-#ifdef ALDE_SIM
+#ifdef HEATER_SIM
 // Antwort des simulierten Panels direkt hinter den Header auf den Bus legen.
 // Sie läuft durch den Transceiver zurück und wird von readInfo() wie eine
 // echte Antwort aus dem Echo gelesen. Ohne 12 V am Transceiver kommt nichts

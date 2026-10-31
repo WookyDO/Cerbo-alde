@@ -6,11 +6,12 @@
 static const char WEB_UI[] PROGMEM = R"HTML(<!doctype html>
 <html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Alde Heizung</title>
+<title>Heizung</title>
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--fg:#1d2329;--mut:#69727d;--line:#dde1e6;--acc:#d9480f;--ok:#2b8a3e;--bad:#c92a2a}
 @media (prefers-color-scheme:dark){:root{--bg:#15181c;--card:#1f2328;--fg:#e8eaed;--mut:#9aa3ad;--line:#343a40;--acc:#ff8a4c;--ok:#51cf66;--bad:#ff6b6b}}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 system-ui,-apple-system,sans-serif}
 main{max-width:480px;margin:0 auto;padding:16px}
 header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
@@ -36,49 +37,79 @@ button:disabled{opacity:.4;cursor:default}
 #msg{min-height:20px;font-size:14px;color:var(--bad)}
 #pend{font-size:13px;color:var(--mut)}
 </style></head><body><main>
-<header><h1>Alde Heizung</h1><span id="conn" class="badge">…</span></header>
+<header><h1 id="title">Heizung</h1><span id="conn" class="badge">…</span></header>
 <div class="card temps">
- <div><div class="lbl">Innen</div><div class="big" id="z1">–</div></div>
- <div><div class="lbl">Außen</div><div class="big" id="out">–</div></div>
+ <div><div class="lbl" id="t1l">Innen</div><div class="big" id="t1">–</div></div>
+ <div><div class="lbl" id="t2l">Außen</div><div class="big" id="t2">–</div></div>
 </div>
-<div class="card">
+<div class="card" id="alde" hidden>
  <div class="row"><span>Raumtemperatur</span>
-  <div class="sp"><button data-d="-0.5">−</button><span id="sp">–</span><button data-d="0.5">+</button></div></div>
- <div class="row"><span>Gas</span><button id="gas" data-k="gas">Aus</button></div>
- <div class="row"><span>Elektro</span><div class="seg" id="el">
+  <div class="sp"><button data-d="-0.5">−</button><span class="spv">–</span><button data-d="0.5">+</button></div></div>
+ <div class="row"><span>Gas</span><button id="gas">Aus</button></div>
+ <div class="row"><span>Elektro</span><div class="seg">
   <button data-k="el" data-v="0">Aus</button><button data-k="el" data-v="1">1 kW</button>
   <button data-k="el" data-v="2">2 kW</button><button data-k="el" data-v="3">3 kW</button></div></div>
- <div class="row"><span>Warmwasser</span><div class="seg" id="ww">
+ <div class="row"><span>Warmwasser</span><div class="seg">
   <button data-k="ww" data-v="0">Aus</button><button data-k="ww" data-v="1">An</button>
   <button data-k="ww" data-v="2">Boost</button></div></div>
- <div id="pend"></div>
 </div>
+<div class="card" id="truma" hidden>
+ <div class="row"><span>Raumtemperatur</span>
+  <div class="sp"><button data-d="-1">−</button><span class="spv">–</span><button data-d="1">+</button></div></div>
+ <div class="row"><span>Heizstufe</span><div class="seg">
+  <button data-k="mode" data-v="off">Aus</button><button data-k="mode" data-v="eco">Eco</button>
+  <button data-k="mode" data-v="boost">Boost</button></div></div>
+ <div class="row"><span>Warmwasser</span><div class="seg">
+  <button data-k="ww" data-v="0">Aus</button><button data-k="ww" data-v="40">Eco</button>
+  <button data-k="ww" data-v="60">Heiß</button><button data-k="ww" data-v="200">Boost</button></div></div>
+ <div class="row"><span>Energie</span><div class="seg">
+  <button data-k="mix" data-v="gas">Gas</button><button data-k="mix" data-v="mix">Mix</button>
+  <button data-k="mix" data-v="el">Elektro</button></div></div>
+ <div class="row" id="telrow"><span>Elektro</span><div class="seg">
+  <button data-k="el" data-v="900">900 W</button><button data-k="el" data-v="1800">1800 W</button></div></div>
+ <p class="lbl">Das CP Plus holt Änderungen selbst ab, das kann bis zu 30 s dauern.</p>
+</div>
+<div id="pend"></div>
 <div class="card"><div class="flags" id="flags"></div></div>
 <div id="msg"></div>
 <div class="lbl" id="rssi"></div>
 <p><a href="/setup" style="color:var(--mut)">Einstellungen</a></p>
 </main><script>
 const $=id=>document.getElementById(id);
-let st=null,spLocal=null,spSent=null,spTimer=null;
+const TYPES={
+ alde:{title:'Alde Heizung',l1:'Innen',l2:'Außen',k1:'z1',k2:'out',off:5},
+ truma:{title:'Truma Heizung',l1:'Innen',l2:'Wasser',k1:'room',k2:'water',off:20}};
+const TSTATUS={0:'Aus',1:'Warnung',4:'Startet',5:'An'};
+let type='alde',st=null,spLocal=null,spSent=null,spTimer=null;
 const t=v=>v==null?'–':v.toFixed(1)+' °C';
+const T=()=>TYPES[type]||TYPES.alde;
+function flags(){
+ if(type==='truma')return[['Betrieb: '+(TSTATUS[st.status]??st.status),st.status===5]];
+ return[['Panel',st.on],['Pumpe',st.pump],['Gasventil',st.valve],['230 V',st.ac],['Beschäftigt',st.busy]];
+}
 function render(j){
- st=j.state;
+ type=j.type;st=j.state;
+ const box=$(type);
+ $('title').textContent=document.title=T().title;
+ for(const k in TYPES)$(k).hidden=k!==type;
+ $('t1l').textContent=T().l1;$('t2l').textContent=T().l2;
  const c=$('conn');
- c.textContent=st?'Verbunden':'Keine Verbindung zum Panel';c.className='badge '+(st?'ok':'bad');
+ c.textContent=st?'Verbunden':'Keine Verbindung zur Heizung';c.className='badge '+(st?'ok':'bad');
  document.querySelectorAll('button').forEach(b=>b.disabled=!st);
- $('pend').textContent=j.pending?'Wird an das Panel übertragen …':'';
+ $('pend').textContent=j.pending?'Wird an die Heizung übertragen …':'';
  if(j.error)$('msg').textContent=j.error;
  $('rssi').textContent=j.rssi!=null?'WLAN '+j.rssi+' dBm'+(j.rssi<-75?' (schwach)':''):j.ap?'Access Point':'';
  if(!st)return;
- $('z1').textContent=t(st.z1);$('out').textContent=t(st.out);
+ $('t1').textContent=t(st[T().k1]);$('t2').textContent=t(st[T().k2]);
  if(!j.pending)spSent=null;
- // Bis das Panel bestätigt, den gesendeten statt des alten Sollwerts zeigen.
- if(spLocal==null)$('sp').textContent=(spSent??st.sp).toFixed(1)+' °C';
- const g=$('gas');g.textContent=st.gas?'An':'Aus';g.classList.toggle('on',!!st.gas);
- for(const k of['el','ww'])$(k).querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v===st[k]));
- const f=[['Panel',st.on],['Pumpe',st.pump],['Gasventil',st.valve],['230 V',st.ac],['Beschäftigt',st.busy]];
- $('flags').innerHTML=f.map(([n,v])=>`<span class="flag${v?' on':''}">${n}</span>`).join('')+
-  (st.err?'<span class="flag err">Fehler</span>':'');
+ // Bis die Heizung bestätigt, den gesendeten statt des alten Sollwerts zeigen.
+ const sp=spLocal??spSent??st.sp;
+ if(box)box.querySelector('.spv').textContent=sp<5?'Aus':sp.toFixed(1)+' °C';
+ if(box)box.querySelectorAll('[data-k]').forEach(b=>b.classList.toggle('on',String(st[b.dataset.k])===b.dataset.v));
+ if(type==='alde'){const g=$('gas');g.textContent=st.gas?'An':'Aus';g.classList.toggle('on',!!st.gas)}
+ if(type==='truma')$('telrow').hidden=st.mix==='gas';
+ $('flags').innerHTML=flags().map(([n,v])=>`<span class="flag${v?' on':''}">${n}</span>`).join('')+
+  (st.err?`<span class="flag err">Fehler${type==='truma'?' '+st.err:''}</span>`:'');
 }
 async function poll(){
  try{render(await (await fetch('/api/state')).json())}
@@ -94,13 +125,14 @@ async function send(p){
 }
 document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{
  if(!st)return;
- spLocal=Math.min(30,Math.max(5,(spLocal??st.sp)+ +b.dataset.d));
- $('sp').textContent=spLocal.toFixed(1)+' °C';
+ const base=spLocal??(st.sp<5?T().off:st.sp);
+ spLocal=Math.min(30,Math.max(5,base+ +b.dataset.d));
+ $(type).querySelector('.spv').textContent=spLocal.toFixed(1)+' °C';
  clearTimeout(spTimer);
  spTimer=setTimeout(()=>{spSent=spLocal;spLocal=null;send({sp:spSent})},800);
 });
 $('gas').onclick=()=>st&&send({gas:st.gas?0:1});
-document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>send({[b.dataset.k]:b.dataset.v}));
+document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>send({[b.dataset.k]:b.dataset.v}));
 poll();setInterval(poll,2000);
 </script></body></html>
 )HTML";
@@ -114,6 +146,7 @@ static const char SETUP_UI[] PROGMEM = R"HTML(<!doctype html>
 :root{--bg:#f4f5f7;--card:#fff;--fg:#1d2329;--mut:#69727d;--line:#dde1e6;--acc:#d9480f;--ok:#2b8a3e;--bad:#c92a2a}
 @media (prefers-color-scheme:dark){:root{--bg:#15181c;--card:#1f2328;--fg:#e8eaed;--mut:#9aa3ad;--line:#343a40;--acc:#ff8a4c;--ok:#51cf66;--bad:#ff6b6b}}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 system-ui,-apple-system,sans-serif}
 main{max-width:480px;margin:0 auto;padding:16px}
 h1{font-size:20px;margin:0 0 12px}
@@ -131,6 +164,11 @@ a{color:var(--mut)}
 </style></head><body><main>
 <h1>Einstellungen</h1>
 <form id="f">
+<div class="card"><h2>Heizung</h2>
+ <select id="heater" name="heater">
+  <option value="alde">Alde Compact 3030 Plus</option>
+  <option value="truma">Truma Combi mit CP Plus (ab C4.00)</option></select>
+ <p class="hint" id="heaterhint"></p></div>
 <div class="card"><h2>Betriebsart</h2>
  <div class="opt"><label><input type="radio" name="mode" value="sta"> WLAN-Client (Router)</label>
  <label><input type="radio" name="mode" value="ap"> Eigener Access Point</label></div>
@@ -169,13 +207,16 @@ function vis(){
  const ap=f.mode.value==='ap';
  $('sta').style.display=ap?'none':'';
  $('ipf').style.display=f.ipmode.value==='static'?'':'none';
+ $('heaterhint').textContent=f.heater.value==='truma'
+  ?'Die Bridge gibt sich als iNet Box aus. Am CP Plus einmal „PR SET“ ausführen, damit es sie erkennt. Keine echte iNet Box parallel betreiben. Anschluss: RJ12 Pin 3 = LIN, Pin 5 = GND.'
+  :'Die Bridge ist LIN-Master am gelben CI-Bus. Anschluss: RJ12 Pin 4 = LIN, Pin 2 = GND.';
  $('modehint').textContent=ap?'Die Bridge öffnet dauerhaft ein eigenes WLAN (IP 192.168.4.1). Der Cerbo verbindet sich dann mit diesem WLAN.'
   :'Ist das WLAN 60 s nicht erreichbar, öffnet die Bridge zusätzlich ihren Access Point.';
 }
 f.addEventListener('change',vis);
 async function load(){
  const c=await (await fetch('/api/config')).json();
- f.mode.value=c.mode;f.ipmode.value=c.static?'static':'dhcp';
+ f.heater.value=c.heater;f.mode.value=c.mode;f.ipmode.value=c.static?'static':'dhcp';
  for(const k of['ssid','ip','gw','mask','dns'])f[k].value=c[k];
  f.apssid.value=c.apSsid;
  if(c.hasPass)f.pass.placeholder=keep;

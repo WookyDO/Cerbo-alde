@@ -1,36 +1,29 @@
-// Alde-LIN-Bridge: WomoLIN LIN-Controller als LIN-Master am gelben CI-Bus
-// einer Alde Compact 3030 Plus. Stellt den Zustand per Zeilenprotokoll über
-// TCP (WLAN) und USB-Seriell bereit; der Cerbo-GX-Dienst verbindet sich per TCP.
-// Die Weboberfläche auf Port 80 erlaubt den Betrieb auch ohne Cerbo.
+// LIN-Heizungs-Bridge: WomoLIN LIN-Controller an einer Alde Compact 3030 Plus
+// (LIN-Master) oder einer Truma Combi mit CP Plus (als iNet Box, LIN-Slave).
+// Stellt den Zustand per Zeilenprotokoll über TCP (WLAN) und USB-Seriell bereit;
+// der Cerbo-GX-Dienst verbindet sich per TCP. Die Weboberfläche auf Port 80
+// erlaubt den Betrieb auch ohne Cerbo.
 #include <Arduino.h>
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
 #include <WebServer.h>
 #include <WiFi.h>
 
-#include "alde_protocol.h"
 #include "config.h"
-#include "lin_master.h"
+#include "heater.h"
+#include "io.h"
 #include "network.h"
 #include "settings.h"
 #include "web_ui.h"
 
-static LinMaster lin(Serial1, PIN_LIN_RX, PIN_LIN_TX);
+static constexpr const char *VERSION = "1.1";
+
 static WiFiServer server(TCP_PORT);
 static WiFiClient client;
 static WebServer web(HTTP_PORT);
 static Settings cfg;
+static Heater *heater = nullptr;
 static uint32_t restartAt = 0;  // Neustart nach dem Speichern der Einstellungen
-
-static alde::State current;
-static bool linkUp = false;
-static uint8_t failCount = 0;
-static uint32_t lastPoll = 0, lastDiag = 0, lastPublish = 0;
-static char lastLine[200];
-
-static alde::Command pending;
-static uint8_t attempts = 0, confirmPolls = 0;
-static char lastError[64];  // letzter asynchroner Befehlsfehler, für die Webseite
 
 struct LineReader {
   char buf[160];
@@ -41,7 +34,7 @@ static LineReader usbReader, tcpReader;
 
 // ── Ausgabe ────────────────────────────────────────────────────────────────
 
-static void emit(const char *line) {
+void emitLine(const char *line) {
   Serial.println(line);
   if (client && client.connected()) {
     client.print(line);
@@ -49,83 +42,27 @@ static void emit(const char *line) {
   }
 }
 
-static void logf(const char *fmt, ...) {
-  char buf[160];
+void logf(const char *fmt, ...) {
+  char buf[160] = "# ";
   va_list ap;
   va_start(ap, fmt);
-  vsnprintf(buf, sizeof buf, fmt, ap);
+  vsnprintf(buf + 2, sizeof buf - 2, fmt, ap);
   va_end(ap);
-  Serial.print("# ");
-  Serial.println(buf);
+  emitLine(buf);
 }
 
-static void publishState(bool force) {
-  char line[200];
-  alde::formatState(linkUp ? &current : nullptr, line, sizeof line);
-  if (force || strcmp(line, lastLine) != 0 || millis() - lastPublish >= STATE_HEARTBEAT_MS) {
-    emit(line);
-    strcpy(lastLine, line);
-    lastPublish = millis();
-  }
-}
-
-static void setLed(int pin, bool on) { digitalWrite(pin, on ? LOW : HIGH); }
+void setLed(int pin, bool on) { digitalWrite(pin, on ? LOW : HIGH); }
 
 // ── Befehle ────────────────────────────────────────────────────────────────
-
-static void failPending(const char *reason) {
-  char line[96];
-  snprintf(line, sizeof line, "ERR %s", reason);
-  emit(line);
-  snprintf(lastError, sizeof lastError, "%s", reason);
-  pending.clear();
-}
-
-// Nimmt "sp=21 gas=1 ..." an und reiht den Befehl ein (TCP, USB und Web).
-static bool submitSet(const char *args, char *err, size_t errLen) {
-  alde::Command cmd;
-  if (!alde::parseSetArgs(args, cmd, err, errLen)) return false;
-  if (!linkUp) {
-    snprintf(err, errLen, "keine Verbindung zum Panel");
-    return false;
-  }
-  pending.merge(cmd);
-  attempts = 0;
-  confirmPolls = 0;
-  lastPoll = 0;  // sofort abarbeiten
-  lastError[0] = '\0';
-  return true;
-}
-
-static void handlePending() {
-  if (alde::commandSatisfied(current, pending)) {
-    logf("Befehl vom Panel übernommen");
-    pending.clear();
-    return;
-  }
-  if (confirmPolls > 0 && confirmPolls < COMMAND_CONFIRM_POLLS) {
-    confirmPolls++;
-    return;
-  }
-  if (attempts >= COMMAND_RETRIES) {
-    failPending("Panel hat Befehl nicht uebernommen");
-    return;
-  }
-  uint8_t frame[8];
-  alde::buildControl(current, pending, frame);
-  lin.sendControl(frame);
-  attempts++;
-  confirmPolls = 1;
-  logf("TX Control %02X %02X %02X (Versuch %u)", frame[3], frame[4], frame[5], attempts);
-}
 
 // Rettungsweg über USB, falls die Bridge im WLAN nicht mehr erreichbar ist:
 // "NET" zeigt die Betriebsart, "NET STA"/"NET AP" wechselt sie und startet neu.
 static void handleNet(const char *arg) {
   if (!*arg) {
-    Serial.printf("NET mode=%s ssid=%s ap=%s ip=%s apip=%s\n", cfg.apMode ? "ap" : "sta",
-                  cfg.staSsid.c_str(), cfg.apSsid.c_str(), WiFi.localIP().toString().c_str(),
-                  netApActive() ? WiFi.softAPIP().toString().c_str() : "-");
+    Serial.printf("NET mode=%s ssid=%s ap=%s ip=%s apip=%s heater=%s\n",
+                  cfg.apMode ? "ap" : "sta", cfg.staSsid.c_str(), cfg.apSsid.c_str(),
+                  WiFi.localIP().toString().c_str(),
+                  netApActive() ? WiFi.softAPIP().toString().c_str() : "-", cfg.heater.c_str());
     return;
   }
   const bool ap = !strcmp(arg, "AP");
@@ -155,23 +92,20 @@ static void handleLine(char *line, bool usb) {
   if (usb && (!strcmp(line, "NET") || !strncmp(line, "NET ", 4))) {
     handleNet(line[3] ? line + 4 : "");
   } else if (!strcmp(line, "PING")) {
-    emit("PONG");
+    emitLine("PONG");
   } else if (!strcmp(line, "GET")) {
-    publishState(true);
-  } else if (!strcmp(line, "DIAG")) {
-    lin.sendDiag();
-    emit("OK");
+    heater->publish(true);
   } else if (!strncmp(line, "SET ", 4)) {
     char err[48];
-    if (submitSet(line + 4, err, sizeof err)) {
-      emit("OK");
+    if (heater->submit(line + 4, err, sizeof err)) {
+      emitLine("OK");
     } else {
       char out[64];
       snprintf(out, sizeof out, "ERR %s", err);
-      emit(out);
+      emitLine(out);
     }
-  } else {
-    emit("ERR unbekannter Befehl");
+  } else if (!heater->command(line)) {
+    emitLine("ERR unbekannter Befehl");
   }
 }
 
@@ -191,38 +125,6 @@ static void readLines(Stream &in, LineReader &r, bool usb) {
   }
 }
 
-// ── LIN-Zyklus ─────────────────────────────────────────────────────────────
-
-static void linCycle() {
-  uint8_t data[8];
-  if (lin.readInfo(data)) {
-    alde::decodeInfo(data, current);
-    if (!linkUp) logf("Panel antwortet");
-    linkUp = true;
-    failCount = 0;
-    setLed(PIN_LED_LIN, true);
-    if (pending.any()) handlePending();
-    publishState(false);
-    return;
-  }
-
-  setLed(PIN_LED_LIN, false);
-  if (failCount < 255) failCount++;
-  if (linkUp && failCount >= LINK_LOST_AFTER) {
-    linkUp = false;
-    logf("Panel antwortet nicht mehr");
-    if (pending.any()) failPending("Verbindung zum Panel verloren");
-  }
-  if (!linkUp) {
-    // Nach Neustart oder Spannungsausfall des Panels erneut anmelden.
-    if (millis() - lastDiag >= 5000) {
-      lin.sendDiag();
-      lastDiag = millis();
-    }
-    publishState(false);
-  }
-}
-
 // ── Netzwerk ───────────────────────────────────────────────────────────────
 
 static void handleNetwork() {
@@ -237,8 +139,8 @@ static void handleNetwork() {
     tcpReader.len = 0;
     tcpReader.overflow = false;
     logf("TCP-Client verbunden: %s", client.remoteIP().toString().c_str());
-    client.print("HELLO alde-bridge 1.0\n");
-    publishState(true);
+    client.printf("HELLO alde-bridge %s heater=%s\n", VERSION, heater->type());
+    heater->publish(true);
   }
   if (client && client.connected()) readLines(client, tcpReader, false);
 }
@@ -282,22 +184,24 @@ static void redirect(const String &url) {
 
 static void webState() {
   if (!webAuth()) return;
-  char state[300], body[440], rssi[8] = "null";
-  alde::formatJson(linkUp ? &current : nullptr, state, sizeof state);
+  char state[300], rssi[8] = "null";
+  heater->stateJson(state, sizeof state);
   if (WiFi.status() == WL_CONNECTED) snprintf(rssi, sizeof rssi, "%d", (int)WiFi.RSSI());
-  snprintf(body, sizeof body,
-           "{\"state\":%s,\"pending\":%s,\"error\":\"%s\",\"rssi\":%s,\"ap\":%s}", state,
-           pending.any() ? "true" : "false", lastError, rssi, netApActive() ? "true" : "false");
+  String body = String("{\"type\":\"") + heater->type() + "\",\"state\":" + state +
+                ",\"pending\":" + (heater->pending() ? "true" : "false") +
+                ",\"error\":" + jsonStr(heater->lastError()) + ",\"rssi\":" + rssi +
+                ",\"ap\":" + (netApActive() ? "true" : "false") + "}";
   web.sendHeader("Cache-Control", "no-store");
   web.send(200, "application/json", body);
 }
 
 static void webSet() {
   if (!webAuth()) return;
-  // Formularfelder sp, gas, el, ww in die Syntax des Zeilenprotokolls übersetzen.
+  // Formularfelder in die Syntax des Zeilenprotokolls übersetzen; welche
+  // Schlüssel gültig sind, prüft die jeweilige Heizung.
   char args[128] = "", err[48];
   size_t len = 0;
-  for (const char *key : {"sp", "gas", "el", "ww"}) {
+  for (const char *key : {"sp", "gas", "el", "ww", "mode", "mix"}) {
     if (!web.hasArg(key)) continue;
     const String value = web.arg(key);
     // Nur einfache Werte: kein zweiter Schlüssel, nichts, was das JSON bricht.
@@ -312,7 +216,7 @@ static void webSet() {
       return;
     }
   }
-  if (!submitSet(args, err, sizeof err)) {
+  if (!heater->submit(args, err, sizeof err)) {
     sendJsonError(err);
     return;
   }
@@ -324,7 +228,7 @@ static void webSet() {
 
 static void webConfigGet() {
   if (!webAuth()) return;
-  String j = "{\"mode\":";
+  String j = "{\"heater\":" + jsonStr(cfg.heater) + ",\"mode\":";
   j += cfg.apMode ? "\"ap\"" : "\"sta\"";
   j += ",\"ssid\":" + jsonStr(cfg.staSsid);
   j += ",\"hasPass\":" + String(cfg.staPass.length() ? "true" : "false");
@@ -351,6 +255,7 @@ static bool parseIp(const char *key, IPAddress &out) {
 
 // Prüft die neuen Einstellungen; nullptr wenn gültig, sonst die Fehlermeldung.
 static const char *validate(const Settings &n) {
+  if (n.heater != "alde" && n.heater != "truma") return "Heizungstyp unbekannt";
   if (!n.apMode && (n.staSsid.isEmpty() || n.staSsid.length() > 32))
     return "WLAN-Name: 1 bis 32 Zeichen";
   if (n.staPass.length() && (n.staPass.length() < 8 || n.staPass.length() > 63))
@@ -373,6 +278,7 @@ static const char *validate(const Settings &n) {
 static void webConfigPost() {
   if (!webAuth()) return;
   Settings n = cfg;
+  if (web.hasArg("heater")) n.heater = web.arg("heater");
   n.apMode = web.arg("mode") == "ap";
   const String ssid = web.arg("ssid");
   // Neues Netz ohne Passwort: offenes WLAN; gleiches Netz: leer heißt unverändert.
@@ -405,7 +311,7 @@ static void webConfigPost() {
     return;
   }
 
-  const bool restart = n.networkDiffers(cfg);
+  const bool restart = n.needsRestart(cfg);
   const bool changed = restart || n.otaPass != cfg.otaPass || n.webPass != cfg.webPass;
   if (!changed) {
     web.send(200, "application/json",
@@ -504,13 +410,13 @@ void setup() {
   setLed(PIN_LED_LIN, false);
   setLed(PIN_LED_NET, false);
 
-  lin.begin();
-  logf("Alde-LIN-Bridge startet");
-#ifdef ALDE_SIM
-  logf("TESTBETRIEB: Panel wird simuliert (Antworten ueber den LIN-Transceiver)");
-#endif
-
   settingsLoad(cfg);
+  heater = createHeater(cfg.heater);
+  logf("LIN-Heizungs-Bridge %s startet, Heizung: %s", VERSION, heater->type());
+#ifdef HEATER_SIM
+  logf("TESTBETRIEB: Heizung wird simuliert");
+#endif
+  heater->begin();
   netBegin(cfg);
 
   MDNS.begin(HOSTNAME);
@@ -520,9 +426,6 @@ void setup() {
   server.begin();
   setupWeb();
 
-  delay(100);
-  lin.sendDiag();
-  lastDiag = millis();
 }
 
 void loop() {
@@ -541,10 +444,6 @@ void loop() {
 
   if (restartAt && (int32_t)(millis() - restartAt) >= 0) ESP.restart();
 
-  uint32_t interval = pending.any() ? CONFIRM_INTERVAL_MS : POLL_INTERVAL_MS;
-  if (lastPoll == 0 || millis() - lastPoll >= interval) {
-    lastPoll = millis();
-    linCycle();
-  }
+  heater->loop();
   delay(2);
 }

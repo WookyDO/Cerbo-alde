@@ -16,6 +16,7 @@ static constexpr const char *NS = "alde";
 void settingsLoad(Settings &s) {
   Preferences p;
   p.begin(NS, true);
+  s.heater = p.getString("heater", "alde");
   s.apMode = p.getBool("ap", false);
   s.staSsid = p.getString("ssid", "");
   s.staPass = p.getString("pass", "");
@@ -34,6 +35,7 @@ void settingsLoad(Settings &s) {
 void settingsSave(const Settings &s) {
   Preferences p;
   p.begin(NS, false);
+  p.putString("heater", s.heater);
   p.putBool("ap", s.apMode);
   p.putString("ssid", s.staSsid);
   p.putString("pass", s.staPass);

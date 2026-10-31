@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 #include "alde_protocol.h"
-#ifdef ALDE_SIM
+#ifdef HEATER_SIM
 #include "alde_sim.h"
 #endif
 
@@ -19,6 +19,8 @@ class LinMaster {
   // Info-Frame abfragen; true bei gültiger Antwort.
   bool readInfo(uint8_t data[8]);
   void sendControl(const uint8_t data[8]);
+  // Empfangene Bytes verwerfen; Rückgabe: Anzahl (für die Prüfung auf fremden Master).
+  uint32_t discardInput();
 
  private:
   static constexpr uint32_t BAUD = 19200;
@@ -29,7 +31,7 @@ class LinMaster {
   HardwareSerial &ser_;
   int rxPin_, txPin_;
 
-#ifdef ALDE_SIM
+#ifdef HEATER_SIM
   // Testbetrieb: der Master beantwortet seine Abfragen selbst über den
   // Transceiver und liest Steuer-Frames aus dem eigenen Echo.
   void simAnswerInfo();
