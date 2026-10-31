@@ -68,6 +68,38 @@ Die Originalsoftware lässt sich jederzeit wiederherstellen, über
 
 Zum Testen: `nc <ip> 7020` oder den seriellen Monitor verwenden.
 
+### Weboberfläche (Betrieb ohne Cerbo)
+
+Unter `http://alde-bridge.local` (oder der IP der Bridge) gibt es eine Seite mit dem gleichen
+Umfang wie auf dem Cerbo: Innen- und Außentemperatur, Sollwert, Gas, Elektro 0–3 kW,
+Warmwasser Aus/An/Boost sowie Pumpe, Gasventil, 230 V, Fehler und die WLAN-Signalstärke.
+Befehle laufen über denselben Weg wie die vom Cerbo (Read-Modify-Write, Bestätigung durch das
+Panel). Beide lassen sich gleichzeitig verwenden.
+
+| Pfad | Methode | Inhalt |
+|---|---|---|
+| `/` | GET | Weboberfläche |
+| `/api/state` | GET | `{"state":{…}\|null,"pending":bool,"error":"…","rssi":-67}` |
+| `/api/set` | POST | Formularfelder `sp`, `gas`, `el`, `ww` wie bei `SET`; Antwort `{"ok":true}` oder `{"ok":false,"error":"…"}` |
+
+Mit `WEB_PASSWORD` in `secrets.h` ist die Seite per Passwort geschützt (Benutzer `admin`).
+Ohne Eintrag ist sie im LAN frei zugänglich.
+
+### Feste IP-Adresse
+
+Standardmäßig holt sich die Bridge ihre Adresse per DHCP. Für eine feste Adresse in
+`include/secrets.h` eintragen (die Adresse muss außerhalb des DHCP-Bereichs des Routers liegen;
+bei der Fritzbox ist das standardmäßig `.20`–`.200`):
+
+```c
+#define STATIC_IP "192.168.178.240"
+#define STATIC_GATEWAY "192.168.178.1"
+// optional: STATIC_SUBNET (Standard 255.255.255.0), STATIC_DNS (Standard: Gateway)
+```
+
+Ist eine Angabe ungültig, meldet das Log `Feste IP ungueltig, verwende DHCP`. Nach einer Änderung
+der Adresse `host` in `config.ini` auf dem Cerbo anpassen.
+
 ## Cerbo-Dienst (`cerbo/dbus-alde/`)
 
 Voraussetzung ist SSH-Zugang als root: Einstellungen → Allgemein → Zugriffsebene „Superuser“,

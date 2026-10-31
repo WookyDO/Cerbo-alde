@@ -155,6 +155,19 @@ void test_format_state() {
   TEST_ASSERT_EQUAL_STRING("STATE link=0", line);
 }
 
+void test_format_json() {
+  const uint8_t d[8] = {126, 0xFE, 100, 0xDE, 0x9E, 0x09, 0, 0};
+  State s = stateFrom(d);
+  char json[300];
+  formatJson(&s, json, sizeof json);
+  TEST_ASSERT_EQUAL_STRING(
+      "{\"z1\":21.0,\"z2\":null,\"out\":8.0,\"sp\":20.0,\"gas\":1,\"valve\":1,\"el\":2,"
+      "\"ww\":1,\"on\":1,\"busy\":0,\"err\":0,\"ac\":0,\"pump\":0,\"raw\":\"DE9E09\"}",
+      json);
+  formatJson(nullptr, json, sizeof json);
+  TEST_ASSERT_EQUAL_STRING("null", json);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_pid);
@@ -168,5 +181,6 @@ int main(int, char **) {
   RUN_TEST(test_command_satisfied);
   RUN_TEST(test_parse_set_args);
   RUN_TEST(test_format_state);
+  RUN_TEST(test_format_json);
   return UNITY_END();
 }

@@ -16,6 +16,7 @@ constexpr int PIN_LED_NET = 17;  // aktiv low
 
 constexpr const char *HOSTNAME = "alde-bridge";
 constexpr uint16_t TCP_PORT = 7020;
+constexpr uint16_t HTTP_PORT = 80;
 
 constexpr uint32_t POLL_INTERVAL_MS = 500;      // normale Statusabfrage
 constexpr uint32_t CONFIRM_INTERVAL_MS = 300;   // Abfrage nach einem Befehl

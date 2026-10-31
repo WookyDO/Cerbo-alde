@@ -1,18 +1,22 @@
 // Alde-LIN-Bridge: WomoLIN LIN-Controller als LIN-Master am gelben CI-Bus
 // einer Alde Compact 3030 Plus. Stellt den Zustand per Zeilenprotokoll über
 // TCP (WLAN) und USB-Seriell bereit; der Cerbo-GX-Dienst verbindet sich per TCP.
+// Die Weboberfläche auf Port 80 erlaubt den Betrieb auch ohne Cerbo.
 #include <Arduino.h>
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
+#include <WebServer.h>
 #include <WiFi.h>
 
 #include "alde_protocol.h"
 #include "config.h"
 #include "lin_master.h"
+#include "web_ui.h"
 
 static LinMaster lin(Serial1, PIN_LIN_RX, PIN_LIN_TX);
 static WiFiServer server(TCP_PORT);
 static WiFiClient client;
+static WebServer web(HTTP_PORT);
 
 static alde::State current;
 static bool linkUp = false;
@@ -22,6 +26,7 @@ static char lastLine[200];
 
 static alde::Command pending;
 static uint8_t attempts = 0, confirmPolls = 0;
+static char lastError[64];  // letzter asynchroner Befehlsfehler, für die Webseite
 
 struct LineReader {
   char buf[160];
@@ -68,7 +73,24 @@ static void failPending(const char *reason) {
   char line[96];
   snprintf(line, sizeof line, "ERR %s", reason);
   emit(line);
+  snprintf(lastError, sizeof lastError, "%s", reason);
   pending.clear();
+}
+
+// Nimmt "sp=21 gas=1 ..." an und reiht den Befehl ein (TCP, USB und Web).
+static bool submitSet(const char *args, char *err, size_t errLen) {
+  alde::Command cmd;
+  if (!alde::parseSetArgs(args, cmd, err, errLen)) return false;
+  if (!linkUp) {
+    snprintf(err, errLen, "keine Verbindung zum Panel");
+    return false;
+  }
+  pending.merge(cmd);
+  attempts = 0;
+  confirmPolls = 0;
+  lastPoll = 0;  // sofort abarbeiten
+  lastError[0] = '\0';
+  return true;
 }
 
 static void handlePending() {
@@ -106,20 +128,13 @@ static void handleLine(char *line) {
     lin.sendDiag();
     emit("OK");
   } else if (!strncmp(line, "SET ", 4)) {
-    alde::Command cmd;
     char err[48];
-    if (!alde::parseSetArgs(line + 4, cmd, err, sizeof err)) {
+    if (submitSet(line + 4, err, sizeof err)) {
+      emit("OK");
+    } else {
       char out[64];
       snprintf(out, sizeof out, "ERR %s", err);
       emit(out);
-    } else if (!linkUp) {
-      emit("ERR keine Verbindung zum Panel");
-    } else {
-      pending.merge(cmd);
-      attempts = 0;
-      confirmPolls = 0;
-      lastPoll = 0;  // sofort abarbeiten
-      emit("OK");
     }
   } else {
     emit("ERR unbekannter Befehl");
@@ -193,6 +208,89 @@ static void handleNetwork() {
   if (client && client.connected()) readLines(client, tcpReader);
 }
 
+// ── Weboberfläche ──────────────────────────────────────────────────────────
+
+static bool webAuth() {
+#ifdef WEB_PASSWORD
+  if (!web.authenticate("admin", WEB_PASSWORD)) {
+    web.requestAuthentication();
+    return false;
+  }
+#endif
+  return true;
+}
+
+static void webState() {
+  if (!webAuth()) return;
+  char state[300], body[400];
+  alde::formatJson(linkUp ? &current : nullptr, state, sizeof state);
+  snprintf(body, sizeof body, "{\"state\":%s,\"pending\":%s,\"error\":\"%s\",\"rssi\":%d}",
+           state, pending.any() ? "true" : "false", lastError, (int)WiFi.RSSI());
+  web.sendHeader("Cache-Control", "no-store");
+  web.send(200, "application/json", body);
+}
+
+static void webSet() {
+  if (!webAuth()) return;
+  // Formularfelder sp, gas, el, ww in die Syntax des Zeilenprotokolls übersetzen.
+  char args[128] = "", err[48];
+  size_t len = 0;
+  for (const char *key : {"sp", "gas", "el", "ww"}) {
+    if (!web.hasArg(key)) continue;
+    const String value = web.arg(key);
+    // Nur einfache Werte: kein zweiter Schlüssel, nichts, was das JSON bricht.
+    if (value.isEmpty() || strpbrk(value.c_str(), " =\"\\") != nullptr) {
+      web.send(400, "application/json", "{\"ok\":false,\"error\":\"ungueltiger Wert\"}");
+      return;
+    }
+    len += snprintf(args + len, sizeof args - len, "%s%s=%s", len ? " " : "", key,
+                    value.c_str());
+    if (len >= sizeof args) {
+      web.send(400, "application/json", "{\"ok\":false,\"error\":\"zu lang\"}");
+      return;
+    }
+  }
+  if (!submitSet(args, err, sizeof err)) {
+    char body[96];
+    snprintf(body, sizeof body, "{\"ok\":false,\"error\":\"%s\"}", err);
+    web.send(400, "application/json", body);
+    return;
+  }
+  logf("Web: SET %s", args);
+  web.send(200, "application/json", "{\"ok\":true}");
+}
+
+static void setupWeb() {
+  web.on("/", HTTP_GET, [] {
+    if (webAuth()) web.send_P(200, "text/html; charset=utf-8", WEB_UI);
+  });
+  web.on("/api/state", HTTP_GET, webState);
+  web.on("/api/set", HTTP_POST, webSet);
+  web.onNotFound([] { web.send(404, "text/plain", "nicht gefunden"); });
+  web.begin();
+  MDNS.addService("http", "tcp", HTTP_PORT);
+}
+
+// Feste IP aus secrets.h (STATIC_IP); ungültige Angaben fallen auf DHCP zurück.
+static void setupStaticIp() {
+#ifdef STATIC_IP
+#ifndef STATIC_SUBNET
+#define STATIC_SUBNET "255.255.255.0"
+#endif
+#ifndef STATIC_DNS
+#define STATIC_DNS STATIC_GATEWAY
+#endif
+  IPAddress ip, gateway, subnet, dns;
+  if (ip.fromString(STATIC_IP) && gateway.fromString(STATIC_GATEWAY) &&
+      subnet.fromString(STATIC_SUBNET) && dns.fromString(STATIC_DNS) &&
+      WiFi.config(ip, gateway, subnet, dns)) {
+    logf("Feste IP %s", STATIC_IP);
+  } else {
+    logf("Feste IP ungueltig, verwende DHCP");
+  }
+#endif
+}
+
 void setup() {
   Serial.begin(115200);
   pinMode(PIN_LED_LIN, OUTPUT);
@@ -212,6 +310,7 @@ void setup() {
   // Ohne Modem-Sleep: sonst verpasst der ESP32 ARP-Anfragen und ist für den
   // Cerbo zeitweise nicht erreichbar.
   WiFi.setSleep(false);
+  setupStaticIp();
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   MDNS.begin(HOSTNAME);
@@ -219,6 +318,7 @@ void setup() {
   ArduinoOTA.setPassword(OTA_PASSWORD);
   ArduinoOTA.begin();
   server.begin();
+  setupWeb();
 
   delay(100);
   lin.sendDiag();
@@ -235,6 +335,7 @@ void loop() {
 
   ArduinoOTA.handle();
   handleNetwork();
+  web.handleClient();
   readLines(Serial, usbReader);
 
   uint32_t interval = pending.any() ? CONFIRM_INTERVAL_MS : POLL_INTERVAL_MS;

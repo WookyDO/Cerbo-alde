@@ -92,4 +92,8 @@ bool parseSetArgs(const char *args, Command &out, char *err, size_t errLen);
 // Formatiert eine STATE-Zeile (ohne Zeilenende). Rückgabe: Länge.
 size_t formatState(const State *state, char *out, size_t outLen);
 
+// Zustand als JSON-Objekt für die Weboberfläche, "null" ohne Verbindung.
+// Fehlende Temperaturen werden zu null. Rückgabe: Länge.
+size_t formatJson(const State *state, char *out, size_t outLen);
+
 }  // namespace alde

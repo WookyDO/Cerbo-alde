@@ -189,4 +189,26 @@ size_t formatState(const State *s, char *out, size_t outLen) {
                   s->raw[5]);
 }
 
+static void jsonTemp(char *out, size_t n, float t) {
+  if (std::isnan(t))
+    snprintf(out, n, "null");
+  else
+    snprintf(out, n, "%.1f", t);
+}
+
+size_t formatJson(const State *s, char *out, size_t outLen) {
+  if (!s) return snprintf(out, outLen, "null");
+  char z1[8], z2[8], ot[8];
+  jsonTemp(z1, sizeof z1, s->zone1);
+  jsonTemp(z2, sizeof z2, s->zone2);
+  jsonTemp(ot, sizeof ot, s->outdoor);
+  return snprintf(out, outLen,
+                  "{\"z1\":%s,\"z2\":%s,\"out\":%s,\"sp\":%.1f,\"gas\":%d,\"valve\":%d,"
+                  "\"el\":%u,\"ww\":%u,\"on\":%d,\"busy\":%d,\"err\":%d,\"ac\":%d,"
+                  "\"pump\":%d,\"raw\":\"%02X%02X%02X\"}",
+                  z1, z2, ot, s->setpoint, s->gas, s->valve, s->electric, s->water,
+                  s->panelOn, s->busy, s->error, s->ac, s->pump, s->raw[3], s->raw[4],
+                  s->raw[5]);
+}
+
 }  // namespace alde
