@@ -1,12 +1,8 @@
 // Hardware- und Netzwerkeinstellungen der Alde-LIN-Bridge.
+// WLAN, IP und Passwörter werden auf der Setup-Seite eingestellt (settings.h).
 #pragma once
 
-// Zugangsdaten liegen in secrets.h (nicht im Repo, Vorlage: secrets.example.h).
-#if __has_include("secrets.h")
-#include "secrets.h"
-#else
-#error "include/secrets.h fehlt – secrets.example.h kopieren und anpassen"
-#endif
+#include <cstdint>
 
 // WomoLIN LIN-Controller (Pinbelegung wie inetbox2mqtt, Profil "WOMOLIN")
 constexpr int PIN_LIN_RX = 14;
@@ -17,6 +13,12 @@ constexpr int PIN_LED_NET = 17;  // aktiv low
 constexpr const char *HOSTNAME = "alde-bridge";
 constexpr uint16_t TCP_PORT = 7020;
 constexpr uint16_t HTTP_PORT = 80;
+
+// Access Point für Ersteinrichtung und als Notfall-Zugang
+constexpr const char *SETUP_AP_SSID = "Alde-Bridge";
+constexpr const char *SETUP_AP_PASSWORD = "alde-setup";  // solange kein eigenes gesetzt ist
+constexpr uint32_t FALLBACK_AP_AFTER_MS = 60000;  // WLAN so lange weg -> AP zusätzlich an
+constexpr uint32_t STA_RETRY_MS = 30000;          // neuer Verbindungsversuch zum WLAN
 
 constexpr uint32_t POLL_INTERVAL_MS = 500;      // normale Statusabfrage
 constexpr uint32_t CONFIRM_INTERVAL_MS = 300;   // Abfrage nach einem Befehl

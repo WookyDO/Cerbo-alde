@@ -11,12 +11,16 @@
 #include "alde_protocol.h"
 #include "config.h"
 #include "lin_master.h"
+#include "network.h"
+#include "settings.h"
 #include "web_ui.h"
 
 static LinMaster lin(Serial1, PIN_LIN_RX, PIN_LIN_TX);
 static WiFiServer server(TCP_PORT);
 static WiFiClient client;
 static WebServer web(HTTP_PORT);
+static Settings cfg;
+static uint32_t restartAt = 0;  // Neustart nach dem Speichern der Einstellungen
 
 static alde::State current;
 static bool linkUp = false;
@@ -192,7 +196,8 @@ static void linCycle() {
 // ── Netzwerk ───────────────────────────────────────────────────────────────
 
 static void handleNetwork() {
-  setLed(PIN_LED_NET, WiFi.status() == WL_CONNECTED);
+  // An: im WLAN verbunden, blinkt: Access Point aktiv
+  setLed(PIN_LED_NET, WiFi.status() == WL_CONNECTED || (netApActive() && millis() / 500 % 2));
 
   WiFiClient incoming = server.available();
   if (incoming) {
@@ -211,21 +216,48 @@ static void handleNetwork() {
 // ── Weboberfläche ──────────────────────────────────────────────────────────
 
 static bool webAuth() {
-#ifdef WEB_PASSWORD
-  if (!web.authenticate("admin", WEB_PASSWORD)) {
+  if (cfg.webPass.length() && !web.authenticate("admin", cfg.webPass.c_str())) {
     web.requestAuthentication();
     return false;
   }
-#endif
   return true;
+}
+
+static String jsonStr(const String &s) {
+  String out = "\"";
+  for (size_t i = 0; i < s.length(); i++) {
+    const char c = s[i];
+    if (c == '"' || c == '\\') {
+      out += '\\';
+      out += c;
+    } else if (uint8_t(c) < 0x20) {
+      char esc[7];
+      snprintf(esc, sizeof esc, "\\u%04x", c);
+      out += esc;
+    } else {
+      out += c;
+    }
+  }
+  return out + '"';
+}
+
+static void sendJsonError(const char *msg) {
+  web.send(400, "application/json", String("{\"ok\":false,\"error\":") + jsonStr(msg) + "}");
+}
+
+static void redirect(const String &url) {
+  web.sendHeader("Location", url);
+  web.send(302, "text/plain", "");
 }
 
 static void webState() {
   if (!webAuth()) return;
-  char state[300], body[400];
+  char state[300], body[440], rssi[8] = "null";
   alde::formatJson(linkUp ? &current : nullptr, state, sizeof state);
-  snprintf(body, sizeof body, "{\"state\":%s,\"pending\":%s,\"error\":\"%s\",\"rssi\":%d}",
-           state, pending.any() ? "true" : "false", lastError, (int)WiFi.RSSI());
+  if (WiFi.status() == WL_CONNECTED) snprintf(rssi, sizeof rssi, "%d", (int)WiFi.RSSI());
+  snprintf(body, sizeof body,
+           "{\"state\":%s,\"pending\":%s,\"error\":\"%s\",\"rssi\":%s,\"ap\":%s}", state,
+           pending.any() ? "true" : "false", lastError, rssi, netApActive() ? "true" : "false");
   web.sendHeader("Cache-Control", "no-store");
   web.send(200, "application/json", body);
 }
@@ -240,55 +272,173 @@ static void webSet() {
     const String value = web.arg(key);
     // Nur einfache Werte: kein zweiter Schlüssel, nichts, was das JSON bricht.
     if (value.isEmpty() || strpbrk(value.c_str(), " =\"\\") != nullptr) {
-      web.send(400, "application/json", "{\"ok\":false,\"error\":\"ungueltiger Wert\"}");
+      sendJsonError("ungueltiger Wert");
       return;
     }
     len += snprintf(args + len, sizeof args - len, "%s%s=%s", len ? " " : "", key,
                     value.c_str());
     if (len >= sizeof args) {
-      web.send(400, "application/json", "{\"ok\":false,\"error\":\"zu lang\"}");
+      sendJsonError("zu lang");
       return;
     }
   }
   if (!submitSet(args, err, sizeof err)) {
-    char body[96];
-    snprintf(body, sizeof body, "{\"ok\":false,\"error\":\"%s\"}", err);
-    web.send(400, "application/json", body);
+    sendJsonError(err);
     return;
   }
   logf("Web: SET %s", args);
   web.send(200, "application/json", "{\"ok\":true}");
 }
 
+// ── Einstellungen ──────────────────────────────────────────────────────────
+
+static void webConfigGet() {
+  if (!webAuth()) return;
+  String j = "{\"mode\":";
+  j += cfg.apMode ? "\"ap\"" : "\"sta\"";
+  j += ",\"ssid\":" + jsonStr(cfg.staSsid);
+  j += ",\"hasPass\":" + String(cfg.staPass.length() ? "true" : "false");
+  j += ",\"apSsid\":" + jsonStr(cfg.apSsid);
+  j += ",\"hasApPass\":" + String(cfg.apPass.length() ? "true" : "false");
+  j += ",\"static\":" + String(cfg.staticIp ? "true" : "false");
+  j += ",\"ip\":" + jsonStr(cfg.staticIp ? cfg.ip.toString() : "");
+  j += ",\"gw\":" + jsonStr(cfg.staticIp ? cfg.gateway.toString() : "");
+  j += ",\"mask\":" + jsonStr(cfg.subnet.toString());
+  j += ",\"dns\":" + jsonStr(cfg.staticIp ? cfg.dns.toString() : "");
+  j += ",\"hasOta\":" + String(cfg.otaPass.length() ? "true" : "false");
+  j += ",\"hasWeb\":" + String(cfg.webPass.length() ? "true" : "false");
+  j += ",\"configured\":" + String(cfg.configured() ? "true" : "false");
+  j += ",\"staIp\":" + jsonStr(WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : "");
+  j += ",\"apIp\":" + jsonStr(netApActive() ? WiFi.softAPIP().toString() : "");
+  j += "}";
+  web.sendHeader("Cache-Control", "no-store");
+  web.send(200, "application/json", j);
+}
+
+static bool parseIp(const char *key, IPAddress &out) {
+  return out.fromString(web.arg(key)) && uint32_t(out) != 0;
+}
+
+// Prüft die neuen Einstellungen; nullptr wenn gültig, sonst die Fehlermeldung.
+static const char *validate(const Settings &n) {
+  if (!n.apMode && (n.staSsid.isEmpty() || n.staSsid.length() > 32))
+    return "WLAN-Name: 1 bis 32 Zeichen";
+  if (n.staPass.length() && (n.staPass.length() < 8 || n.staPass.length() > 63))
+    return "WLAN-Passwort: 8 bis 63 Zeichen";
+  if (n.apSsid.isEmpty() || n.apSsid.length() > 32) return "AP-Name: 1 bis 32 Zeichen";
+  if (n.apPass.length() && (n.apPass.length() < 8 || n.apPass.length() > 63))
+    return "AP-Passwort: 8 bis 63 Zeichen";
+  if (n.apMode && n.apPass.isEmpty())
+    return "Fuer den dauerhaften Access Point ein eigenes AP-Passwort setzen";
+  if (n.otaPass.isEmpty()) return "OTA-Passwort fehlt (sonst keine Updates mehr moeglich)";
+  if (!n.apMode && n.staticIp) {
+    const uint32_t ip = n.ip, gw = n.gateway, mask = n.subnet;
+    if ((ip & mask) != (gw & mask)) return "IP und Gateway liegen nicht im selben Netz";
+    if (ip == gw) return "IP und Gateway sind gleich";
+    if ((ip & ~mask) == 0 || (ip & ~mask) == ~mask) return "IP ist Netz- oder Broadcastadresse";
+  }
+  return nullptr;
+}
+
+static void webConfigPost() {
+  if (!webAuth()) return;
+  Settings n = cfg;
+  n.apMode = web.arg("mode") == "ap";
+  const String ssid = web.arg("ssid");
+  // Neues Netz ohne Passwort: offenes WLAN; gleiches Netz: leer heißt unverändert.
+  if (ssid != n.staSsid || web.arg("pass").length()) n.staPass = web.arg("pass");
+  n.staSsid = ssid;
+  n.apSsid = web.arg("apssid");
+  if (web.arg("appass").length()) n.apPass = web.arg("appass");
+  if (web.arg("ota").length()) n.otaPass = web.arg("ota");
+  if (web.arg("webclear") == "1")
+    n.webPass = "";
+  else if (web.arg("web").length())
+    n.webPass = web.arg("web");
+
+  n.staticIp = web.arg("ipmode") == "static";
+  if (!n.apMode && n.staticIp) {
+    if (!parseIp("ip", n.ip) || !parseIp("gw", n.gateway) || !parseIp("mask", n.subnet)) {
+      sendJsonError("IP, Gateway oder Subnetzmaske ungueltig");
+      return;
+    }
+    if (web.arg("dns").isEmpty())
+      n.dns = n.gateway;
+    else if (!parseIp("dns", n.dns)) {
+      sendJsonError("DNS ungueltig");
+      return;
+    }
+  }
+
+  if (const char *err = validate(n)) {
+    sendJsonError(err);
+    return;
+  }
+
+  settingsSave(n);
+  String next;
+  if (n.apMode)
+    next = "Mit dem WLAN \"" + n.apSsid + "\" verbinden, dann http://192.168.4.1 aufrufen.";
+  else if (n.staticIp)
+    next = "Nach dem Neustart unter http://" + n.ip.toString() + " erreichbar.";
+  else
+    next = String("Nach dem Neustart unter http://") + HOSTNAME + ".local erreichbar.";
+  web.send(200, "application/json", "{\"ok\":true,\"next\":" + jsonStr(next) + "}");
+  logf("Einstellungen gespeichert, Neustart");
+  restartAt = millis() + 1500;
+  if (!restartAt) restartAt = 1;
+}
+
+// WLAN-Suche läuft im Hintergrund; die Seite fragt nach, bis sie fertig ist.
+static void webScan() {
+  if (!webAuth()) return;
+  const int n = WiFi.scanComplete();
+  if (n == WIFI_SCAN_RUNNING) {
+    web.send(200, "application/json", "{\"scanning\":true}");
+    return;
+  }
+  if (n < 0) {
+    WiFi.scanNetworks(true);
+    web.send(200, "application/json", "{\"scanning\":true}");
+    return;
+  }
+  String j = "{\"scanning\":false,\"networks\":[";
+  for (int i = 0; i < n && i < 20; i++) {
+    if (WiFi.SSID(i).isEmpty()) continue;
+    if (!j.endsWith("[")) j += ',';
+    j += "{\"ssid\":" + jsonStr(WiFi.SSID(i)) + ",\"rssi\":" + String(WiFi.RSSI(i)) +
+         ",\"open\":" + (WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "true" : "false") + "}";
+  }
+  j += "]}";
+  WiFi.scanDelete();
+  web.send(200, "application/json", j);
+}
+
 static void setupWeb() {
   web.on("/", HTTP_GET, [] {
-    if (webAuth()) web.send_P(200, "text/html; charset=utf-8", WEB_UI);
+    if (!webAuth()) return;
+    if (!cfg.configured())
+      redirect("/setup");
+    else
+      web.send_P(200, "text/html; charset=utf-8", WEB_UI);
+  });
+  web.on("/setup", HTTP_GET, [] {
+    if (webAuth()) web.send_P(200, "text/html; charset=utf-8", SETUP_UI);
   });
   web.on("/api/state", HTTP_GET, webState);
   web.on("/api/set", HTTP_POST, webSet);
-  web.onNotFound([] { web.send(404, "text/plain", "nicht gefunden"); });
+  web.on("/api/config", HTTP_GET, webConfigGet);
+  web.on("/api/config", HTTP_POST, webConfigPost);
+  web.on("/api/scan", HTTP_GET, webScan);
+  web.onNotFound([] {
+    // Captive Portal: im AP-Modus alles auf die Startseite umleiten.
+    if (netApActive())
+      redirect("http://" + WiFi.softAPIP().toString() + "/");
+    else
+      web.send(404, "text/plain", "nicht gefunden");
+  });
   web.begin();
   MDNS.addService("http", "tcp", HTTP_PORT);
-}
-
-// Feste IP aus secrets.h (STATIC_IP); ungültige Angaben fallen auf DHCP zurück.
-static void setupStaticIp() {
-#ifdef STATIC_IP
-#ifndef STATIC_SUBNET
-#define STATIC_SUBNET "255.255.255.0"
-#endif
-#ifndef STATIC_DNS
-#define STATIC_DNS STATIC_GATEWAY
-#endif
-  IPAddress ip, gateway, subnet, dns;
-  if (ip.fromString(STATIC_IP) && gateway.fromString(STATIC_GATEWAY) &&
-      subnet.fromString(STATIC_SUBNET) && dns.fromString(STATIC_DNS) &&
-      WiFi.config(ip, gateway, subnet, dns)) {
-    logf("Feste IP %s", STATIC_IP);
-  } else {
-    logf("Feste IP ungueltig, verwende DHCP");
-  }
-#endif
 }
 
 void setup() {
@@ -304,18 +454,12 @@ void setup() {
   logf("TESTBETRIEB: Panel wird simuliert (Antworten ueber den LIN-Transceiver)");
 #endif
 
-  WiFi.mode(WIFI_STA);
-  WiFi.setHostname(HOSTNAME);
-  WiFi.setAutoReconnect(true);
-  // Ohne Modem-Sleep: sonst verpasst der ESP32 ARP-Anfragen und ist für den
-  // Cerbo zeitweise nicht erreichbar.
-  WiFi.setSleep(false);
-  setupStaticIp();
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  settingsLoad(cfg);
+  netBegin(cfg);
 
   MDNS.begin(HOSTNAME);
   ArduinoOTA.setHostname(HOSTNAME);
-  ArduinoOTA.setPassword(OTA_PASSWORD);
+  if (cfg.otaPass.length()) ArduinoOTA.setPassword(cfg.otaPass.c_str());
   ArduinoOTA.begin();
   server.begin();
   setupWeb();
@@ -334,9 +478,12 @@ void loop() {
   }
 
   ArduinoOTA.handle();
+  netLoop();
   handleNetwork();
   web.handleClient();
   readLines(Serial, usbReader);
+
+  if (restartAt && (int32_t)(millis() - restartAt) >= 0) ESP.restart();
 
   uint32_t interval = pending.any() ? CONFIRM_INTERVAL_MS : POLL_INTERVAL_MS;
   if (lastPoll == 0 || millis() - lastPoll >= interval) {

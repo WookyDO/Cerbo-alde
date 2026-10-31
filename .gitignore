@@ -1,4 +1,4 @@
 firmware/.pio/
-firmware/include/secrets.h
 cerbo/dbus-alde/config.ini
 __pycache__/
+firmware/include/secrets.h

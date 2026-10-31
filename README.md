@@ -35,12 +35,21 @@ Benötigt [PlatformIO](https://platformio.org/).
 
 ```sh
 cd firmware
-cp include/secrets.example.h include/secrets.h   # WLAN + OTA-Passwort eintragen
-pio run -e womolin -t upload                      # per USB flashen
-pio device monitor                                # Logausgabe, 115200 Baud
+pio run -e womolin -t upload    # erstes Flashen per USB
+pio device monitor              # Logausgabe, 115200 Baud
 ```
 
-Spätere Updates gehen per WLAN: `ALDE_OTA_PASSWORD=... pio run -e womolin_ota -t upload`.
+WLAN, IP und Passwörter werden nicht einkompiliert, sondern auf der Setup-Seite der Bridge
+eingestellt (siehe [Einrichtung](#einrichtung)). Alle weiteren Updates gehen per WLAN:
+
+```sh
+export ALDE_OTA_PASSWORD='…'    # OTA-Passwort aus der Setup-Seite
+pio run -e womolin_ota -t upload
+```
+
+`ALDE_OTA_PASSWORD` dient beim Bauen außerdem als Start-OTA-Passwort, solange die Bridge noch
+keine Einstellungen gespeichert hat. PlatformIO baut bei einer geänderten Variable nicht neu; dann
+vorher `rm -rf .pio/build` ausführen.
 
 Die Originalsoftware lässt sich jederzeit wiederherstellen, über
 `bin/flash_womolin_inetbox2mqtt_*.bin.zip` aus [inetbox2mqtt](https://github.com/mc0110/inetbox2mqtt).
@@ -82,23 +91,40 @@ Panel). Beide lassen sich gleichzeitig verwenden.
 | `/api/state` | GET | `{"state":{…}\|null,"pending":bool,"error":"…","rssi":-67}` |
 | `/api/set` | POST | Formularfelder `sp`, `gas`, `el`, `ww` wie bei `SET`; Antwort `{"ok":true}` oder `{"ok":false,"error":"…"}` |
 
-Mit `WEB_PASSWORD` in `secrets.h` ist die Seite per Passwort geschützt (Benutzer `admin`).
-Ohne Eintrag ist sie im LAN frei zugänglich.
+| `/setup` | GET | Einstellungen |
+| `/api/config` | GET / POST | Einstellungen lesen (ohne Passwörter) / speichern und neu starten |
+| `/api/scan` | GET | WLAN-Suche, so lange abfragen bis `"scanning":false` |
 
-### Feste IP-Adresse
+Mit einem Web-Passwort (Setup-Seite) sind alle Seiten geschützt, Benutzer `admin`. Ohne ist die
+Bridge für jeden im selben WLAN bedienbar, auch die Einstellungen.
 
-Standardmäßig holt sich die Bridge ihre Adresse per DHCP. Für eine feste Adresse in
-`include/secrets.h` eintragen (die Adresse muss außerhalb des DHCP-Bereichs des Routers liegen;
-bei der Fritzbox ist das standardmäßig `.20`–`.200`):
+### Einrichtung
 
-```c
-#define STATIC_IP "192.168.178.240"
-#define STATIC_GATEWAY "192.168.178.1"
-// optional: STATIC_SUBNET (Standard 255.255.255.0), STATIC_DNS (Standard: Gateway)
-```
+Die Einstellungen liegen im Flash der Bridge (NVS) und überstehen Firmware-Updates.
 
-Ist eine Angabe ungültig, meldet das Log `Feste IP ungueltig, verwende DHCP`. Nach einer Änderung
-der Adresse `host` in `config.ini` auf dem Cerbo anpassen.
+| Einstellung | Bedeutung |
+|---|---|
+| Betriebsart | **WLAN-Client**: Die Bridge verbindet sich mit dem Router. **Eigener Access Point**: Die Bridge öffnet dauerhaft ein eigenes WLAN, IP `192.168.4.1`. Der Cerbo verbindet sich dann mit diesem WLAN und bekommt `host = 192.168.4.1` in `config.ini`. |
+| WLAN | Netzwerk (mit Suche) und Passwort |
+| IP-Adresse | DHCP oder fest (IP, Gateway, Subnetzmaske, DNS). Eine feste Adresse muss außerhalb des DHCP-Bereichs liegen, bei der Fritzbox standardmäßig `.20`–`.200`. |
+| Access Point | Name (Standard `Alde-Bridge`) und Passwort (Standard `alde-setup`, solange kein eigenes gesetzt ist) |
+| OTA-Passwort | Pflicht. Ohne Passwort wären keine Updates per WLAN mehr möglich. |
+| Web-Passwort | optional, Benutzer `admin` |
+
+**Erster Start:** Ohne gespeicherte Einstellungen öffnet die Bridge den Access Point `Alde-Bridge`
+(Passwort `alde-setup`). Nach dem Verbinden öffnen die meisten Handys die Setup-Seite von selbst,
+sonst `http://192.168.4.1` aufrufen.
+
+**Notfall-Zugang:** Ist das eingestellte WLAN 60 s nicht erreichbar (falsches Passwort, Router aus),
+öffnet die Bridge zusätzlich ihren Access Point und versucht alle 30 s erneut, ins WLAN zu kommen.
+Sobald das klappt und niemand mehr am Access Point hängt, schließt sie ihn wieder. Die Netz-LED
+blinkt, solange der Access Point offen ist.
+
+**Update von einer Version mit `secrets.h`:** Beim ersten Start übernimmt die Bridge die
+WLAN-Zugangsdaten, die der ESP32 von der Vorversion gespeichert hat. Das OTA-Passwort kommt aus
+`ALDE_OTA_PASSWORD` beim Bauen. Danach kann `include/secrets.h` gelöscht werden.
+
+Nach einer Änderung der Adresse `host` in `config.ini` auf dem Cerbo anpassen.
 
 ## Cerbo-Dienst (`cerbo/dbus-alde/`)
 
@@ -119,10 +145,11 @@ ssh root@<cerbo-ip> svc -t /service/dbus-alde       # neu starten
 
 ## Inbetriebnahme
 
-1. Controller flashen, per USB den Monitor öffnen und prüfen, dass `WLAN verbunden, IP …` erscheint.
+1. Controller flashen und über den Access Point `Alde-Bridge` einrichten. Danach ist die Bridge
+   unter `http://alde-bridge.local` erreichbar.
 2. Mit der Alde verbinden. Nach `Panel antwortet` sollten `STATE link=1 …`-Zeilen erscheinen.
    Die Werte mit dem Display der Alde vergleichen.
-3. Einen einzelnen Befehl testen, z.B. `SET sp=21` eintippen, und am Panel prüfen.
+3. Einen einzelnen Befehl testen, z.B. über die Weboberfläche den Sollwert ändern, und am Panel prüfen.
 4. Danach den Cerbo-Dienst installieren.
 
 Erscheint dauerhaft `STATE link=0`, prüfe Verdrahtung, Masse und 12 V. Hilft das nicht, mit
@@ -132,7 +159,8 @@ einem Logikanalysator am LIN-Pin Break und Antwort prüfen.
 
 ```sh
 cd firmware
-pio run -e womolin_sim -t upload
+pio run -e womolin_sim -t upload        # per USB
+pio run -e womolin_sim_ota -t upload    # per WLAN
 ```
 
 In dieser Variante beantwortet der Controller seine LIN-Abfragen selbst wie ein Alde-Panel. Die
