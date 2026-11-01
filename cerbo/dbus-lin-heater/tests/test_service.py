@@ -188,7 +188,7 @@ class TrumaServiceTest(Base):
         self.assertEqual(self.sw[OUT % (0, 'State')], 1)
         self.assertEqual(self.sw[OUT % (0, 'Dimming')], 21.0)
         self.assertEqual(self.sw[OUT % (0, 'Measurement')], 19.5)
-        self.assertEqual(self.sw[OUT % (1, 'Dimming')], 0)  # Eco
+        self.assertEqual(self.sw[OUT % (1, 'Dimming')], 1)  # Eco
         self.assertEqual(self.sw[OUT % (2, 'Dimming')], 2)  # Heiß
         self.assertEqual(self.sw[OUT % (3, 'Dimming')], 0)  # Gas
         self.assertEqual(self.sw[OUT % (4, 'Status')], 0)
@@ -200,18 +200,20 @@ class TrumaServiceTest(Base):
         self.svc.on_line(TRUMA_STATE.replace('sp=21.0 mode=eco', 'sp=0.0 mode=off'))
         self.assertEqual(self.sw[OUT % (0, 'State')], 0)
         self.assertEqual(self.sw[OUT % (0, 'Dimming')], 21.0)
+        self.assertEqual(self.sw[OUT % (1, 'Dimming')], 0)  # Heizstufe "Aus"
 
     def test_writes_are_forwarded(self):
         self.svc.on_line(TRUMA_STATE)
         self.assertTrue(self.sw.write(OUT % (0, 'Dimming'), 22.4))
         self.assertTrue(self.sw.write(OUT % (0, 'State'), 0))
         self.assertTrue(self.sw.write(OUT % (0, 'State'), 1))
-        self.assertTrue(self.sw.write(OUT % (1, 'Dimming'), 1))
+        self.assertTrue(self.sw.write(OUT % (1, 'Dimming'), 2))
+        self.assertTrue(self.sw.write(OUT % (1, 'Dimming'), 0))
         self.assertTrue(self.sw.write(OUT % (2, 'Dimming'), 3))
         self.assertTrue(self.sw.write(OUT % (3, 'Dimming'), 1))
         self.assertTrue(self.sw.write(OUT % (4, 'Dimming'), 1))
         self.assertEqual(self.sent, ['SET sp=22', 'SET mode=off', 'SET mode=eco', 'SET mode=boost',
-                                     'SET ww=200', 'SET mix=mix', 'SET el=1800'])
+                                     'SET mode=off', 'SET ww=200', 'SET mix=mix', 'SET el=1800'])
 
     def test_invalid_writes_rejected(self):
         self.svc.on_line(TRUMA_STATE)

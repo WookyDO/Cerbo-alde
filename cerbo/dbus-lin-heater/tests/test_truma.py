@@ -55,8 +55,9 @@ class WriteTest(unittest.TestCase):
         self.assertEqual(self.write(t.OUT_WATER, 'Dimming', 1), 'SET ww=40')
         self.assertEqual(self.write(t.OUT_MIX, 'Dimming', 2), 'SET mix=el')
         self.assertEqual(self.write(t.OUT_ELECTRIC, 'Dimming', 0), 'SET el=900')
+        self.assertEqual(self.write(t.OUT_MODE, 'Dimming', 0), 'SET mode=off')
         with self.assertRaises(ValueError):
-            self.write(t.OUT_MODE, 'Dimming', 2)
+            self.write(t.OUT_MODE, 'Dimming', 3)
         self.assertIsNone(self.write(t.OUT_WATER, 'State', 1))
 
 

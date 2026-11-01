@@ -32,7 +32,7 @@ automatisch.
 
 | D-Bus-Dienst | Inhalt |
 |---|---|
-| `com.victronenergy.switch.truma_combi` | Raumtemperatur (Temperaturregler mit an/aus), Heizstufe Eco/Boost, Warmwasser Aus/Eco/Heiß/Boost, Energie Gas/Mix/Elektro, Elektro 900/1800 W; Statuswerte unter `/Truma/*` (Betriebsstatus, Fehlercode) |
+| `com.victronenergy.switch.truma_combi` | Raumtemperatur (Temperaturregler mit an/aus), Heizstufe Aus/Eco/Boost, Warmwasser Aus/Eco/Heiß/Boost, Energie Gas/Mix/Elektro, Elektro 900/1800 W; Statuswerte unter `/Truma/*` (Betriebsstatus, Fehlercode) |
 | `com.victronenergy.temperature.truma_innen` | Innentemperatur |
 | `com.victronenergy.temperature.truma_wasser` | Wassertemperatur |
 

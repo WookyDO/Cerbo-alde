@@ -1,7 +1,8 @@
 """Truma Combi mit CP Plus (die Bridge ist dort iNet Box).
 
-  /SwitchableOutput/0  Raumtemperatur (Typ 3): State = Heizung an/aus, Dimming = Soll
-  /SwitchableOutput/1  Heizstufe Eco/Boost (Dropdown)
+  /SwitchableOutput/0  Raumtemperatur (Typ 3), Dimming = Soll
+  /SwitchableOutput/1  Heizstufe Aus/Eco/Boost (Dropdown) – der Temperaturregler
+                       der GUI v2 hat keinen Ausschalter, daher hier "Aus"
   /SwitchableOutput/2  Warmwasser Aus/Eco/Heiß/Boost (Dropdown)
   /SwitchableOutput/3  Energie Gas/Mix/Elektro (Dropdown)
   /SwitchableOutput/4  Elektroleistung 900/1800 W (Dropdown)
@@ -18,8 +19,8 @@ from .common import (STATUS_OFF, STATUS_ON, TEMP_ROOM, TEMP_WATER_HEATER, TYPE_D
                      TYPE_SETPOINT, Output, Temperature, split_state, temp)
 
 ROOM_MIN, ROOM_MAX = 5, 30
-MODES = ['eco', 'boost']
-MODE_LABELS = ['Eco', 'Boost']
+MODES = ['off', 'eco', 'boost']
+MODE_LABELS = ['Aus', 'Eco', 'Boost']
 WATER_VALUES = [0, 40, 60, 200]
 WATER_LABELS = ['Aus', 'Eco', 'Heiß', 'Boost']
 MIXES = ['gas', 'mix', 'el']
@@ -111,7 +112,7 @@ class Model:
         # Ist etwas aus, zeigt die GUI die zuletzt gewählte Einstellung.
         if s.setpoint >= ROOM_MIN:
             self.last_setpoint = s.setpoint
-        if s.mode in MODES:
+        if s.mode in ('eco', 'boost'):
             self.last_mode = s.mode
         if s.electric in EL_VALUES:
             self.last_electric = s.electric
@@ -120,7 +121,7 @@ class Model:
             (OUT % (OUT_ROOM, 'Measurement'), s.room, False),
             (OUT % (OUT_ROOM, 'Dimming'), self.last_setpoint, True),
             (OUT % (OUT_MODE, 'State'), 1 if s.heating else 0, False),
-            (OUT % (OUT_MODE, 'Dimming'), _index(MODES, self.last_mode), True),
+            (OUT % (OUT_MODE, 'Dimming'), _index(MODES, s.mode), True),
             (OUT % (OUT_WATER, 'State'), 1 if s.water_target else 0, False),
             (OUT % (OUT_WATER, 'Dimming'), _index(WATER_VALUES, s.water_target), True),
             (OUT % (OUT_MIX, 'State'), 1, False),
