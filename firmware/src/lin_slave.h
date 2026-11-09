@@ -6,12 +6,12 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
+#include "config.h"
 #include "truma_protocol.h"
 
 class LinSlave {
  public:
-  LinSlave(HardwareSerial &serial, int rxPin, int txPin)
-      : ser_(serial), rxPin_(rxPin), txPin_(txPin) {}
+  LinSlave(HardwareSerial &serial, const LinPins &pins) : ser_(serial), pins_(pins) {}
 
   // Startet die Task; Zugriffe auf box laufen unter lock.
   void begin(truma::InetBox *box, SemaphoreHandle_t lock);
@@ -33,7 +33,7 @@ class LinSlave {
   void logFrame(const char *dir, uint8_t id, const uint8_t *d, size_t n);
 
   HardwareSerial &ser_;
-  int rxPin_, txPin_;
+  LinPins pins_;
   truma::InetBox *box_ = nullptr;
   SemaphoreHandle_t lock_ = nullptr;
   volatile uint32_t lastUpdate_ = 0, headers_ = 0;

@@ -98,7 +98,7 @@ function render(j){
  document.querySelectorAll('button').forEach(b=>b.disabled=!st);
  $('pend').textContent=j.pending?'Wird an die Heizung übertragen …':'';
  if(j.error)$('msg').textContent=j.error;
- $('rssi').textContent=j.rssi!=null?'WLAN '+j.rssi+' dBm'+(j.rssi<-75?' (schwach)':''):j.ap?'Access Point':'';
+ $('rssi').textContent=[j.rssi!=null?'WLAN '+j.rssi+' dBm'+(j.rssi<-75?' (schwach)':''):j.ap?'Access Point':'',j.vin!=null?'Bordnetz '+j.vin.toFixed(1)+' V':''].filter(Boolean).join(' · ');
  if(!st)return;
  $('t1').textContent=t(st[T().k1]);$('t2').textContent=t(st[T().k2]);
  if(!j.pending)spSent=null;

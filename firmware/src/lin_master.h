@@ -1,17 +1,17 @@
-// LIN-Master auf dem gelben CI-Bus (TJA1021T am UART1 des WomoLIN-Controllers).
+// LIN-Master auf dem gelben CI-Bus (TJA1021T am UART1).
 #pragma once
 
 #include <Arduino.h>
 
 #include "alde_protocol.h"
+#include "config.h"
 #ifdef HEATER_SIM
 #include "alde_sim.h"
 #endif
 
 class LinMaster {
  public:
-  LinMaster(HardwareSerial &serial, int rxPin, int txPin)
-      : ser_(serial), rxPin_(rxPin), txPin_(txPin) {}
+  LinMaster(HardwareSerial &serial, const LinPins &pins) : ser_(serial), pins_(pins) {}
 
   void begin();
   // Anmeldung beim Panel (Diagnoseframe 0x3C).
@@ -29,7 +29,7 @@ class LinMaster {
   void drain(uint32_t ms);
 
   HardwareSerial &ser_;
-  int rxPin_, txPin_;
+  LinPins pins_;
 
 #ifdef HEATER_SIM
   // Testbetrieb: der Master beantwortet seine Abfragen selbst über den

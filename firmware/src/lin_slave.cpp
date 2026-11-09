@@ -7,11 +7,20 @@ static constexpr uint32_t BYTE_TIMEOUT_MS = 5;  // innerhalb eines Frames (1 Byt
 void LinSlave::begin(InetBox *box, SemaphoreHandle_t lock) {
   box_ = box;
   lock_ = lock;
-  ser_.begin(BAUD, SERIAL_8N1, rxPin_, txPin_);
+  if (pins_.slp >= 0) {  // TJA1021: SLP high = Normal Mode
+    pinMode(pins_.slp, OUTPUT);
+    digitalWrite(pins_.slp, HIGH);
+  }
+  ser_.begin(BAUD, SERIAL_8N1, pins_.rx, pins_.tx);
   // Bytes schon nach einer Zeichenzeit Pause weiterreichen, sonst kommt der
   // Header erst verspätet an und die Antwort verpasst ihr Zeitfenster.
   ser_.setRxTimeout(1);
+  // ESP32: auf Kern 1 neben loop(); der ESP32-C3 hat nur einen Kern.
+#if CONFIG_FREERTOS_UNICORE
+  xTaskCreate(taskEntry, "lin-slave", 4096, this, 5, nullptr);
+#else
   xTaskCreatePinnedToCore(taskEntry, "lin-slave", 4096, this, 5, nullptr, 1);
+#endif
 }
 
 void LinSlave::taskEntry(void *self) { static_cast<LinSlave *>(self)->run(); }

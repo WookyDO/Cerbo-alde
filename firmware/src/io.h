@@ -5,5 +5,6 @@
 void emitLine(const char *line);
 // Logzeile "# ..." an USB und TCP; der Cerbo-Dienst ignoriert sie.
 void logf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
-// LEDs des WomoLIN-Controllers sind aktiv low.
-void setLed(int pin, bool on);
+// LIN-Verbindung zur Heizung steht (LED; auf der ESP32_LIN-Platine
+// zusammen mit dem Netzstatus auf einer LED).
+void setLinLed(bool on);

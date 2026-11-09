@@ -14,7 +14,7 @@ static constexpr uint32_t SIM_CYCLE_MS = 1000;
 
 TrumaHeater::TrumaHeater()
 #ifndef HEATER_SIM
-    : slave_(Serial1, PIN_LIN_RX, PIN_LIN_TX)
+    : slave_(Serial1, LIN_TRUMA)
 #endif
 {
   lock_ = xSemaphoreCreateMutex();
@@ -75,7 +75,7 @@ void TrumaHeater::loop() {
     logf(up ? "CP Plus verbunden" : "CP Plus antwortet nicht mehr");
     if (!up && sent_.any()) fail("Verbindung zum CP Plus verloren");
   }
-  setLed(PIN_LED_LIN, linkUp_);
+  setLinLed(linkUp_);
 
   if (!header && !noPanelHint_ && now - startedAt_ >= NO_PANEL_HINT_MS) {
     noPanelHint_ = true;

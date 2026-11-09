@@ -41,6 +41,26 @@ In der GUI v2 erscheinen die Schalter in der Schalter-Ansicht (Gruppe „Alde He
 
 ## Hardware
 
+**ESP32_LIN-Platine** (ESP32-C3-WROOM-02-N4, 2× TJA1021T/20, KiCad-Projekt `ESP32_LIN`):
+
+| | Truma (Bridge = Slave) | Alde (Bridge = Master) |
+|---|---|---|
+| Kanal | LIN1, Klemme J2 / RJ12 J6 | LIN2, Klemme J5 / RJ12 J7, **Jumper JP1 stecken** |
+| GPIO RX / TX / SLP | 5 / 6 / 7 | 4 / 10 / 20 |
+
+- Nur der Transceiver der gewählten Heizung wird geweckt (SLP high), der andere schläft.
+- Rote LED (GPIO8, aktiv low): an = Heizung verbunden und Netz da, blinkt = Setup- oder
+  Notfall-Access-Point offen, aus = keine Verbindung zur Heizung. Grün = Versorgung.
+- Bordspannung über VSENSE (GPIO3, Teiler 100k/15k an VIN_F): in der Weboberfläche,
+  `/api/state` (`"vin"`), per Befehl `VIN` und in `NET`. Gemessen wird hinter der
+  Verpolschutz-Diode; der Wert enthält dafür pauschal 0,3 V (`VSENSE_DIODE_DROP` in `config.h`).
+- RJ12-Buchsen in Truma-Belegung: Pin 1 = 12 V (VIN_RAW), Pin 2/5 = GND, Pin 3 = LIN.
+  Der gelbe Alde-Stecker hat LIN auf Pin 4 und passt deshalb nicht direkt an J7; die Alde
+  über die Klemme J5 anschließen.
+- Flashen und Log über USB-C (USB-Serial/JTAG des C3, keine Treiber nötig).
+
+**WomoLIN LIN-Controller:**
+
 - WomoLIN LIN-Controller: ESP32 (16 MB), TJA1021T, LIN an UART1 (**RX GPIO14, TX GPIO15**),
   LEDs GPIO2 (LIN) und GPIO17 (Netz). Pinbelegung aus `inetbox2mqtt` (Profil `WOMOLIN`).
 - **Alde:** Anschluss am **gelben** RJ12: **Pin 4 = LIN**, **Pin 2 = GND**. Den roten (internen) Bus
@@ -57,9 +77,13 @@ Benötigt [PlatformIO](https://platformio.org/).
 
 ```sh
 cd firmware
-pio run -e womolin -t upload    # erstes Flashen per USB
+pio run -e esp32_lin -t upload  # ESP32_LIN: erstes Flashen per USB
+pio run -e womolin -t upload    # WomoLIN: erstes Flashen per USB
 pio device monitor              # Logausgabe, 115200 Baud
 ```
+
+Für OTA und den Testbetrieb gibt es zu jeder Platine die Varianten `_ota`, `_sim` und `_sim_ota`
+(z.B. `esp32_lin_ota`).
 
 WLAN, IP, Passwörter und Heizungstyp werden nicht einkompiliert, sondern auf der Setup-Seite der
 Bridge eingestellt (siehe [Einrichtung](#einrichtung)). Alle weiteren Updates gehen per WLAN:

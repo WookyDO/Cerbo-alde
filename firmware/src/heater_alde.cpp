@@ -6,7 +6,7 @@
 static constexpr uint32_t GUARD_LISTEN_MS = 1500;   // Bus abhören vor dem ersten Senden
 static constexpr uint32_t GUARD_RETRY_MS = 10000;   // erneut prüfen nach fremdem Master
 
-AldeHeater::AldeHeater() : lin_(Serial1, PIN_LIN_RX, PIN_LIN_TX) {}
+AldeHeater::AldeHeater() : lin_(Serial1, LIN_ALDE) {}
 
 void AldeHeater::begin() {
   lin_.begin();
@@ -123,13 +123,13 @@ void AldeHeater::cycle() {
     if (!linkUp_) logf("Panel antwortet");
     linkUp_ = true;
     failCount_ = 0;
-    setLed(PIN_LED_LIN, true);
+    setLinLed(true);
     if (pending_.any()) handlePending();
     publish(false);
     return;
   }
 
-  setLed(PIN_LED_LIN, false);
+  setLinLed(false);
   if (failCount_ < 255) failCount_++;
   if (linkUp_ && failCount_ >= LINK_LOST_AFTER) {
     linkUp_ = false;

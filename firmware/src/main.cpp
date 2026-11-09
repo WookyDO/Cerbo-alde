@@ -1,4 +1,4 @@
-// LIN-Heizungs-Bridge: WomoLIN LIN-Controller an einer Alde Compact 3030 Plus
+// LIN-Heizungs-Bridge: WomoLIN LIN-Controller oder ESP32_LIN-Platine an einer Alde Compact 3030 Plus
 // (LIN-Master) oder einer Truma Combi mit CP Plus (als iNet Box, LIN-Slave).
 // Stellt den Zustand per Zeilenprotokoll über TCP (WLAN) und USB-Seriell bereit;
 // der Cerbo-GX-Dienst verbindet sich per TCP. Die Weboberfläche auf Port 80
@@ -51,7 +51,51 @@ void logf(const char *fmt, ...) {
   emitLine(buf);
 }
 
-void setLed(int pin, bool on) { digitalWrite(pin, on ? LOW : HIGH); }
+// LEDs sind auf beiden Platinen aktiv low.
+static void writeLed(int pin, bool on) { digitalWrite(pin, on ? LOW : HIGH); }
+
+#if defined(BOARD_ESP32_LIN)
+static bool linLed = false;
+void setLinLed(bool on) { linLed = on; }
+
+// Eine LED für alles: an = Heizung verbunden und Netz da (WLAN-Client
+// verbunden oder dauerhafter Access Point), blinkt = Setup- oder Notfall-AP
+// offen, aus = keine Verbindung zur Heizung.
+static void updateLeds() {
+  const bool blink = netApActive() && !cfg.apMode;
+  const bool netOk = WiFi.status() == WL_CONNECTED || (cfg.apMode && netApActive());
+  writeLed(PIN_LED_STATUS, blink ? millis() / 500 % 2 : linLed && netOk);
+}
+
+// ── Bordspannung (VSENSE) ──────────────────────────────────────────────────
+
+static float vin = NAN;  // geglättet, Volt; NAN bis zur ersten Messung
+
+static void readVin() {
+  static uint32_t last = 0;
+  if (last && millis() - last < 200) return;
+  last = millis();
+  uint32_t mv = 0;
+  for (int i = 0; i < 8; i++) mv += analogReadMilliVolts(PIN_VSENSE);
+  const float v = mv / 8 / 1000.0f * VSENSE_RATIO + VSENSE_DIODE_DROP;
+  vin = isnan(vin) ? v : vin + (v - vin) * 0.2f;
+}
+
+// Bordspannung als Text ("12.6"), "-" ohne Messung bzw. unter 1 V (nur USB).
+static const char *vinText() {
+  static char buf[8];
+  if (isnan(vin) || vin < 1.0f) return "-";
+  snprintf(buf, sizeof buf, "%.1f", vin);
+  return buf;
+}
+#else
+void setLinLed(bool on) { writeLed(PIN_LED_LIN, on); }
+
+static void updateLeds() {
+  // Netz-LED an: im WLAN verbunden, blinkt: Access Point aktiv
+  writeLed(PIN_LED_NET, WiFi.status() == WL_CONNECTED || (netApActive() && millis() / 500 % 2));
+}
+#endif
 
 // ── Befehle ────────────────────────────────────────────────────────────────
 
@@ -63,6 +107,10 @@ static void handleNet(const char *arg) {
                   cfg.apMode ? "ap" : "sta", cfg.staSsid.c_str(), cfg.apSsid.c_str(),
                   WiFi.localIP().toString().c_str(),
                   netApActive() ? WiFi.softAPIP().toString().c_str() : "-", cfg.heater.c_str());
+#if defined(BOARD_ESP32_LIN)
+    Serial.printf("NET board=esp32_lin lin=%s vin=%s\n",
+                  cfg.heater == "truma" ? "LIN1 (J2/J6)" : "LIN2 (J5/J7, JP1 stecken)", vinText());
+#endif
     return;
   }
   const bool ap = !strcmp(arg, "AP");
@@ -91,6 +139,12 @@ static void handleLine(char *line, bool usb) {
 
   if (usb && (!strcmp(line, "NET") || !strncmp(line, "NET ", 4))) {
     handleNet(line[3] ? line + 4 : "");
+#if defined(BOARD_ESP32_LIN)
+  } else if (!strcmp(line, "VIN")) {
+    char out[24];
+    snprintf(out, sizeof out, "VIN %s", vinText());
+    emitLine(out);
+#endif
   } else if (!strcmp(line, "PING")) {
     emitLine("PONG");
   } else if (!strcmp(line, "GET")) {
@@ -128,8 +182,7 @@ static void readLines(Stream &in, LineReader &r, bool usb) {
 // ── Netzwerk ───────────────────────────────────────────────────────────────
 
 static void handleNetwork() {
-  // An: im WLAN verbunden, blinkt: Access Point aktiv
-  setLed(PIN_LED_NET, WiFi.status() == WL_CONNECTED || (netApActive() && millis() / 500 % 2));
+  updateLeds();
 
   WiFiClient incoming = server.available();
   if (incoming) {
@@ -188,6 +241,9 @@ static void webState() {
   heater->stateJson(state, sizeof state);
   if (WiFi.status() == WL_CONNECTED) snprintf(rssi, sizeof rssi, "%d", (int)WiFi.RSSI());
   String body = String("{\"type\":\"") + heater->type() + "\",\"state\":" + state +
+#if defined(BOARD_ESP32_LIN)
+                ",\"vin\":" + (strcmp(vinText(), "-") ? vinText() : "null") +
+#endif
                 ",\"pending\":" + (heater->pending() ? "true" : "false") +
                 ",\"error\":" + jsonStr(heater->lastError()) + ",\"rssi\":" + rssi +
                 ",\"ap\":" + (netApActive() ? "true" : "false") + "}";
@@ -405,14 +461,31 @@ static void setupWeb() {
 
 void setup() {
   Serial.begin(115200);
+#if defined(BOARD_ESP32_LIN)
+  // USB-Seriell (USB-Serial/JTAG): ohne angeschlossenen Rechner nicht warten.
+  Serial.setTxTimeoutMs(0);
+  pinMode(PIN_LED_STATUS, OUTPUT);
+  writeLed(PIN_LED_STATUS, false);
+  // Beide Transceiver schlafen lassen; die Heizung weckt ihren in begin().
+  for (int slp : {LIN_TRUMA.slp, LIN_ALDE.slp}) {
+    pinMode(slp, OUTPUT);
+    digitalWrite(slp, LOW);
+  }
+  analogSetPinAttenuation(PIN_VSENSE, ADC_11db);
+#else
   pinMode(PIN_LED_LIN, OUTPUT);
   pinMode(PIN_LED_NET, OUTPUT);
-  setLed(PIN_LED_LIN, false);
-  setLed(PIN_LED_NET, false);
+  writeLed(PIN_LED_LIN, false);
+  writeLed(PIN_LED_NET, false);
+#endif
 
   settingsLoad(cfg);
   heater = createHeater(cfg.heater);
   logf("LIN-Heizungs-Bridge %s startet, Heizung: %s", VERSION, heater->type());
+#if defined(BOARD_ESP32_LIN)
+  logf("Platine ESP32_LIN, Heizung an %s",
+       cfg.heater == "truma" ? "LIN1 (J2/J6)" : "LIN2 (J5/J7, Jumper JP1 = Master)");
+#endif
 #ifdef HEATER_SIM
   logf("TESTBETRIEB: Heizung wird simuliert");
 #endif
@@ -448,5 +521,8 @@ void loop() {
   if (restartAt && (int32_t)(millis() - restartAt) >= 0) ESP.restart();
 
   heater->loop();
+#if defined(BOARD_ESP32_LIN)
+  readVin();
+#endif
   delay(2);
 }

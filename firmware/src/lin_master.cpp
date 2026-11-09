@@ -1,7 +1,11 @@
 #include "lin_master.h"
 
 void LinMaster::begin() {
-  ser_.begin(BAUD, SERIAL_8N1, rxPin_, txPin_);
+  if (pins_.slp >= 0) {  // TJA1021: SLP high = Normal Mode
+    pinMode(pins_.slp, OUTPUT);
+    digitalWrite(pins_.slp, HIGH);
+  }
+  ser_.begin(BAUD, SERIAL_8N1, pins_.rx, pins_.tx);
   ser_.setTimeout(0);
 }
 

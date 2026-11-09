@@ -4,11 +4,32 @@
 
 #include <cstdint>
 
-// WomoLIN LIN-Controller (Pinbelegung wie inetbox2mqtt, Profil "WOMOLIN")
-constexpr int PIN_LIN_RX = 14;
-constexpr int PIN_LIN_TX = 15;
+// Anschluss eines LIN-Transceivers; slp < 0: SLP fest verdrahtet.
+struct LinPins {
+  int rx, tx, slp;
+};
+
+#if defined(BOARD_ESP32_LIN)
+// ESP32_LIN-Platine (ESP32-C3-WROOM-02, 2× TJA1021T/20)
+//   LIN1 (J2/J6): fest Slave           -> Truma (Bridge = iNet Box)
+//   LIN2 (J5/J7): Master mit JP1       -> Alde  (Bridge = LIN-Master)
+constexpr LinPins LIN_TRUMA = {5, 6, 7};   // LIN1_RX, LIN1_TX, LIN1_SLP
+constexpr LinPins LIN_ALDE = {4, 10, 20};  // LIN2_RX, LIN2_TX, LIN2_SLP
+// Nur eine schaltbare LED (rot, D7 an GPIO8, aktiv low); die grüne ist die
+// Power-LED. An: Heizung verbunden und Netz da, blinkt: Setup-/Notfall-AP offen.
+constexpr int PIN_LED_STATUS = 8;
+// Spannungsteiler 100k/15k an VIN_F, also hinter PTC und Verpolschutz-Diode.
+constexpr int PIN_VSENSE = 3;
+constexpr float VSENSE_RATIO = (100.0f + 15.0f) / 15.0f;
+constexpr float VSENSE_DIODE_DROP = 0.3f;  // SS34 (D1) bei ~50 mA, zum Abgleich
+#else
+// WomoLIN LIN-Controller (Pinbelegung wie inetbox2mqtt, Profil "WOMOLIN"),
+// ein Transceiver für beide Heizungen.
+constexpr LinPins LIN_TRUMA = {14, 15, -1};
+constexpr LinPins LIN_ALDE = {14, 15, -1};
 constexpr int PIN_LED_LIN = 2;   // aktiv low
 constexpr int PIN_LED_NET = 17;  // aktiv low
+#endif
 
 constexpr const char *HOSTNAME = "lin-bridge";
 constexpr uint16_t TCP_PORT = 7020;
