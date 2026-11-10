@@ -22,11 +22,7 @@ constexpr int PIN_LED_STATUS = 8;
 constexpr int PIN_VSENSE = 3;
 constexpr int VSENSE_SAMPLES = 32;
 constexpr float VSENSE_RATIO = (100.0f + 15.0f) / 15.0f;
-// Abgleich aus zwei Multimeter-Messungen an VIN_F (4,85 V und 11,75 V):
-// am Teiler zurückgerechnet = VSENSE_CAL_GAIN × real + VSENSE_CAL_OFFSET
-constexpr float VSENSE_CAL_GAIN = 0.971f;
-constexpr float VSENSE_CAL_OFFSET = 0.69f;
-constexpr float VSENSE_DIODE_DROP = 0.25f;  // D1 und PTC, gemessen bei 12 V
+constexpr float VSENSE_DIODE_DROP = 0.24f;  // D1 und PTC, gemessen bei 12 V
 #else
 // WomoLIN LIN-Controller (Pinbelegung wie inetbox2mqtt, Profil "WOMOLIN"),
 // ein Transceiver für beide Heizungen.
