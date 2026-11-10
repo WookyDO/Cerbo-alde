@@ -53,7 +53,9 @@ In der GUI v2 erscheinen die Schalter in der Schalter-Ansicht (Gruppe „Alde He
   Notfall-Access-Point offen, aus = keine Verbindung zur Heizung. Grün = Versorgung.
 - Bordspannung über VSENSE (GPIO3, Teiler 100k/15k an VIN_F): in der Weboberfläche,
   `/api/state` (`"vin"`), per Befehl `VIN` und in `NET`. Gemessen wird hinter der
-  Verpolschutz-Diode; der Wert enthält dafür pauschal 0,3 V (`VSENSE_DIODE_DROP` in `config.h`).
+  Verpolschutz-Diode; der Wert enthält dafür pauschal 0,25 V (`VSENSE_DIODE_DROP` in `config.h`),
+  der ADC ist über `VSENSE_CAL_GAIN` und `VSENSE_CAL_OFFSET` abgeglichen. Nur an USB ist die
+  Anzeige nicht aussagekräftig, weil der Strom dort über D3 statt über D1 kommt.
 - RJ12-Buchsen in Truma-Belegung: Pin 1 = 12 V (VIN_RAW), Pin 2/5 = GND, Pin 3 = LIN.
   Der gelbe Alde-Stecker hat LIN auf Pin 4 und passt deshalb nicht direkt an J7; die Alde
   über die Klemme J5 anschließen.

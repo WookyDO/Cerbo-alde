@@ -20,8 +20,13 @@ constexpr LinPins LIN_ALDE = {4, 10, 20};  // LIN2_RX, LIN2_TX, LIN2_SLP
 constexpr int PIN_LED_STATUS = 8;
 // Spannungsteiler 100k/15k an VIN_F, also hinter PTC und Verpolschutz-Diode.
 constexpr int PIN_VSENSE = 3;
+constexpr int VSENSE_SAMPLES = 32;
 constexpr float VSENSE_RATIO = (100.0f + 15.0f) / 15.0f;
-constexpr float VSENSE_DIODE_DROP = 0.3f;  // SS34 (D1) bei ~50 mA, zum Abgleich
+// Abgleich aus zwei Multimeter-Messungen an VIN_F (4,85 V und 11,75 V):
+// am Teiler zurückgerechnet = VSENSE_CAL_GAIN × real + VSENSE_CAL_OFFSET
+constexpr float VSENSE_CAL_GAIN = 0.971f;
+constexpr float VSENSE_CAL_OFFSET = 0.69f;
+constexpr float VSENSE_DIODE_DROP = 0.25f;  // D1 und PTC, gemessen bei 12 V
 #else
 // WomoLIN LIN-Controller (Pinbelegung wie inetbox2mqtt, Profil "WOMOLIN"),
 // ein Transceiver für beide Heizungen.

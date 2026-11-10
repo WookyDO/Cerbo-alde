@@ -76,9 +76,11 @@ static void readVin() {
   if (last && millis() - last < 200) return;
   last = millis();
   uint32_t mv = 0;
-  for (int i = 0; i < 8; i++) mv += analogReadMilliVolts(PIN_VSENSE);
-  const float v = mv / 8 / 1000.0f * VSENSE_RATIO + VSENSE_DIODE_DROP;
-  vin = isnan(vin) ? v : vin + (v - vin) * 0.2f;
+  for (int i = 0; i < VSENSE_SAMPLES; i++) mv += analogReadMilliVolts(PIN_VSENSE);
+  const float atDivider = mv / float(VSENSE_SAMPLES) / 1000.0f * VSENSE_RATIO;
+  const float v = (atDivider - VSENSE_CAL_OFFSET) / VSENSE_CAL_GAIN + VSENSE_DIODE_DROP;
+  // Alle 200 ms ein Wert, Zeitkonstante etwa 4 s
+  vin = isnan(vin) ? v : vin + (v - vin) * 0.05f;
 }
 
 // Bordspannung als Text ("12.6"), "-" ohne Messung bzw. unter 1 V (nur USB).
