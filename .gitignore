@@ -3,3 +3,10 @@ cerbo/dbus-lin-heater/config.ini
 cerbo/dbus-lin-heater/heater.type
 __pycache__/
 firmware/include/secrets.h
+
+# KiCad
+hardware/*-backups/
+hardware/*.kicad_prl
+hardware/fp-info-cache
+hardware/*.lck
+.DS_Store

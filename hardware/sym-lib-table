@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "ESP32_LIN")(type "KiCad")(uri "${KIPRJMOD}/ESP32_LIN.kicad_sym")(options "")(descr "Projektbibliothek"))
+)

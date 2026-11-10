@@ -1,0 +1,151 @@
+(footprint "SolderJumper-2_P1.3mm_Open_Pad1.0x1.5mm"
+	(version 20240108)
+	(generator "pcbnew")
+	(layer "F.Cu")
+	(descr "SMD Solder Jumper, 1x1.5mm Pads, 0.3mm gap, open")
+	(tags "solder jumper open")
+	(property "Reference" "REF**"
+		(at 0 -1.8 0)
+		(layer "F.SilkS")
+		(uuid "08d85121-ef86-563f-83e5-a1272080256f")
+		(effects
+			(font
+				(size 0.8 0.8)
+				(thickness 0.12)
+			)
+		)
+	)
+	(property "Value" "SolderJumper-2_P1.3mm_Open_Pad1.0x1.5mm"
+		(at 0 1.9 0)
+		(layer "F.Fab")
+		(uuid "ed1dff1d-9589-5d30-95aa-fa5fb8be80de")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Footprint" "ESP32_LIN:SolderJumper-2_P1.3mm_Open_Pad1.0x1.5mm"
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "cd002955-d82d-5705-81e8-15ee5ff239eb")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "453a01e8-a3a2-5a9f-9531-8913115727d3")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "c03bfd90-a15d-535b-8fab-f68a90b7e372")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr)
+	(fp_line
+		(start -1.4 1)
+		(end -1.4 -1)
+		(layer F.SilkS)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+	)
+	(fp_line
+		(start 1.4 1)
+		(end -1.4 1)
+		(layer F.SilkS)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+	)
+	(fp_line
+		(start 1.4 -1)
+		(end 1.4 1)
+		(layer F.SilkS)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+	)
+	(fp_line
+		(start -1.4 -1)
+		(end 1.4 -1)
+		(layer F.SilkS)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+	)
+	(fp_line
+		(start -1.65 -1.25)
+		(end 1.65 -1.25)
+		(layer F.CrtYd)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+	)
+	(fp_line
+		(start -1.65 -1.25)
+		(end -1.65 1.25)
+		(layer F.CrtYd)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+	)
+	(fp_line
+		(start 1.65 1.25)
+		(end 1.65 -1.25)
+		(layer F.CrtYd)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+	)
+	(fp_line
+		(start 1.65 1.25)
+		(end -1.65 1.25)
+		(layer F.CrtYd)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+	)
+	(pad "2" smd rect
+		(at 0.65 0)
+		(size 1 1.5)
+		(layers F.Cu F.Mask)
+	)
+	(pad "1" smd rect
+		(at -0.65 0)
+		(size 1 1.5)
+		(layers F.Cu F.Mask)
+	)
+)

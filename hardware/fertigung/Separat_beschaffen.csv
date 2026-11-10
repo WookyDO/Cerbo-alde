@@ -1,0 +1,8 @@
+﻿Referenzen;Anzahl;Beschreibung;Hersteller;Hersteller-Teil;DigiKey-Nr.;Montage;Alternative / Hinweis
+J1;1;Schraubklemme 2-pol. 5,08 mm;Phoenix Contact;1715721;277-1263-ND;THT;"Same Sky TB007-508-02BE / 102-6203-ND erst ab Rev5 (Bohrung 1,5 mm); Kefa KF128-5.08-2P (LCSC)"
+J2, J5;2;Schraubklemme 3-pol. 5,08 mm;Phoenix Contact;1715734;277-1264-ND;THT;"Same Sky TB007-508-03BE / 102-6204-ND erst ab Rev5 (Bohrung 1,5 mm); Kefa KF128-5.08-3P (LCSC)"
+J4;1;Stiftleiste 1x6 2,54 mm;Sullins;PREC006SAAN-RC;35-PREC006SAAN-RC-ND;THT;
+J6, J7;2;RJ12 6P6C liegend;TE Connectivity;5555165-1;A31422-ND;THT;
+JP1;1;Stiftleiste 1x2 2,54 mm;Sullins;PREC002SAAN-RC;35-PREC002SAAN-RC-ND;THT;
+(JP1);1;Jumper-Steckbruecke 2,54 mm;Sullins;SPC02SYAN;S9001-ND;-;
+U1;1;ESP32-C3 Modul;Espressif;ESP32-C3-WROOM-02-N4;1965-ESP32-C3-WROOM-02-N4CT-ND;SMD (Modul, Handloeten);

@@ -41,7 +41,7 @@ In der GUI v2 erscheinen die Schalter in der Schalter-Ansicht (Gruppe „Alde He
 
 ## Hardware
 
-**ESP32_LIN-Platine** (ESP32-C3-WROOM-02-N4, 2× TJA1021T/20, KiCad-Projekt `ESP32_LIN`):
+**ESP32_LIN-Platine** (ESP32-C3-WROOM-02-N4, 2× TJA1021T/20, KiCad-Projekt in [`hardware/`](hardware), Fertigungsdaten in `hardware/fertigung`):
 
 | | Truma (Bridge = Slave) | Alde (Bridge = Master) |
 |---|---|---|
